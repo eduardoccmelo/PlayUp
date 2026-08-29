@@ -1,0 +1,7 @@
+PlayUp/node_modules
+PlayUp/dist
+PlayUp/.git
+PlayUp/.DS_Store
+.git
+.gitignore
+npm-debug.log*
