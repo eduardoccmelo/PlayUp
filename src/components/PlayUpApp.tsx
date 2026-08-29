@@ -34,6 +34,7 @@ import {
   isVisibleToParticipants as visibleToPlayers,
   pricePerPlayer as price,
   today,
+  gameTimestamp,
   weekdayName,
 } from "../utils/game";
 const emptyPlayer = {
@@ -173,11 +174,30 @@ export function PlayUpApp() {
   const [pendingRemoval, setPendingRemoval] = useState<(() => void) | null>(
     null,
   );
-  const [, setClock] = useState(() => Date.now());
+  const [clock, setClock] = useState(() => Date.now());
   useEffect(() => {
     const intervalId = window.setInterval(() => setClock(Date.now()), 30_000);
     return () => window.clearInterval(intervalId);
   }, []);
+  useEffect(() => {
+    const now = Date.now();
+    const nextGames = games.map((gameSession) => {
+      const minimum = gameSession.minPlayers;
+      const cancellationDeadline =
+        gameTimestamp(gameSession) - 4 * 60 * 60 * 1000;
+      const shouldCancel =
+        minimum !== null &&
+        !gameSession.cancelled &&
+        now >= cancellationDeadline &&
+        now < gameTimestamp(gameSession) &&
+        gameSession.paidPlayerIds.length < minimum;
+      return shouldCancel
+        ? { ...gameSession, cancelled: true, teams: null }
+        : gameSession;
+    });
+    if (nextGames.some((gameSession, index) => gameSession !== games[index]))
+      setGames(nextGames);
+  }, [clock, games, setGames]);
   const listed = useMemo(
     () =>
       game
@@ -313,6 +333,8 @@ export function PlayUpApp() {
         waitlistIds: [],
         paidPlayerIds: [],
         teams: null,
+        minPlayers: null,
+        cancelled: false,
       };
       saveGames([...games, g]);
       setGameId(null);
@@ -327,8 +349,8 @@ export function PlayUpApp() {
     e.preventDefault();
     const name = playerForm.name.trim();
     if (!name) return;
-    if (name.length > 12) {
-      setNotice("O nome deve ter no máximo 12 caracteres.");
+    if (name.length > 20) {
+      setNotice("O nome deve ter no máximo 20 caracteres.");
       return;
     }
     if (
@@ -680,12 +702,13 @@ export function PlayUpApp() {
           setAccess("home");
         }}
       />
-      {game ? (
-        <section className="hero">
+      {game && !hasGameEnded(game) ? (
+        <section className="hero game-hero">
           <div>
             <p className="eyebrow">{localize("ORGANIZADOR", language)}</p>
             <h1>
-              {localize("Gerencie o", language)} <em>{localize("jogo.", language)}</em>
+              {localize("Gerencie o", language)}{" "}
+              <em>{localize("jogo.", language)}</em>
             </h1>
             <p className="game-event-summary">
               {label(game)} – {game.endTime} · ({game.duration}{" "}
@@ -695,8 +718,23 @@ export function PlayUpApp() {
               {game.location || localize("Local não informado", language)}
             </p>
           </div>
+          <button
+            className={`hero-game-action ${game.cancelled ? "secondary" : "session-action-button delete"}`}
+            onClick={() =>
+              updateGame(
+                {
+                  ...game,
+                  cancelled: !game.cancelled,
+                  teams: game.cancelled ? game.teams : null,
+                },
+                false,
+              )
+            }
+          >
+            {localize(game.cancelled ? "Reativar jogo" : "Cancelar jogo", language)}
+          </button>
         </section>
-      ) : (
+      ) : !game ? (
         <section className="game-directory-heading">
           <h1>
             {localize("Gerenciar", language)}{" "}
@@ -715,7 +753,7 @@ export function PlayUpApp() {
             </button>
           )}
         </section>
-      )}
+      ) : null}
       {!game && (
         <section className="panel session-panel">
           {games.length > 0 ? (
@@ -741,6 +779,9 @@ export function PlayUpApp() {
                       {gameSession.duration} {localize("min", language)}) ·{" "}
                       {gameSession.location ||
                         localize("Local não informado", language)}
+                      {gameSession.cancelled && (
+                        <> · ({localize("CANCELADO", language)})</>
+                      )}
                     </p>
                     <div className="session-row-actions">
                       <button
@@ -753,15 +794,14 @@ export function PlayUpApp() {
                       >
                         {localize("Ver", language)}
                       </button>
-                      {!isPastGame && (
-                        <button
-                          className="session-action-button edit"
-                          aria-label={localize("Editar", language)}
-                          onClick={() => editGameDetails(gameSession)}
-                        >
-                          {localize("Editar", language)}
-                        </button>
-                      )}
+                      <button
+                        className="session-action-button edit"
+                        aria-label={localize("Editar", language)}
+                        disabled={isPastGame}
+                        onClick={() => editGameDetails(gameSession)}
+                      >
+                        {localize("Editar", language)}
+                      </button>
                       <button
                         className="session-action-button delete"
                         aria-label={localize("Deletar", language)}
@@ -858,6 +898,11 @@ export function PlayUpApp() {
       ) : (
         game && (
           <>
+            {game.cancelled && (
+              <p className="game-cancelled">
+                {localize("CANCELADO", language)}
+              </p>
+            )}
             <section className="stat-grid">
               <div>
                 <strong>
@@ -929,7 +974,9 @@ export function PlayUpApp() {
                             {isListed ? (
                               <small>{localize("na lista", language)}</small>
                             ) : isWaiting ? (
-                              <small>{localize("na lista de espera", language)}</small>
+                              <small>
+                                {localize("na lista de espera", language)}
+                              </small>
                             ) : (
                               <button
                                 className="text-button"
@@ -1095,7 +1142,9 @@ export function PlayUpApp() {
                   })}
                 </section>
                 <section className="waitlist-inline">
-                  <p className="eyebrow">{localize("LISTA DE ESPERA", language)}</p>
+                  <p className="eyebrow">
+                    {localize("LISTA DE ESPERA", language)}
+                  </p>
                   {game.waitlistIds.length ? (
                     game.waitlistIds.map((id, index) => {
                       const waitingPlayer = players.find(
@@ -1146,6 +1195,46 @@ export function PlayUpApp() {
                     <p className="empty">{localize("Sem espera.", language)}</p>
                   )}
                 </section>
+                <section className="minimum-players-control">
+                  <label>
+                    <input
+                      checked={game.minPlayers !== null}
+                      onChange={(event) =>
+                        updateGame(
+                          {
+                            ...game,
+                            minPlayers: event.target.checked ? 2 : null,
+                          },
+                          false,
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    {localize("Definir mínimo de jogadores", language)}
+                  </label>
+                  {game.minPlayers !== null && (
+                    <label className="minimum-players-select">
+                      <select
+                        value={game.minPlayers}
+                        onChange={(event) =>
+                          updateGame(
+                            { ...game, minPlayers: +event.target.value },
+                            false,
+                          )
+                        }
+                      >
+                        {Array.from(
+                          { length: Math.max(1, game.maxPlayers - 1) },
+                          (_, index) => index + 2,
+                        ).map((minimum) => (
+                          <option key={minimum} value={minimum}>
+                            {minimum}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </section>
               </section>
               <aside className="side-column">
                 <section
@@ -1183,7 +1272,7 @@ export function PlayUpApp() {
                       <form className="player-form" onSubmit={savePlayer}>
                         <input
                           required
-                          maxLength={12}
+                          maxLength={20}
                           placeholder={localize("Nome", language)}
                           value={playerForm.name}
                           onChange={(e) =>
@@ -1302,6 +1391,13 @@ export function PlayUpApp() {
                   )}
                 </section>
                 <section className="teams-section team-balance-panel">
+                  <p className="balance-availability">
+                    {localize(
+                      "Balanceamento disponível para jogadores pagos",
+                      language,
+                    )}{" "}
+                    ({paid.length}/{game.maxPlayers})
+                  </p>
                   <button
                     className="primary team-balance-button"
                     onClick={() => {
@@ -1428,14 +1524,28 @@ function PlayerView({
   };
   const list = game && (
     <section className="participant-dashboard">
+      {game.cancelled && (
+        <p className="game-cancelled">{localize("CANCELADO", language)}</p>
+      )}
       <p className="eyebrow">{localize("EVENTO", language)}</p>
-      <h1>{localize("Lista do jogo", language)}</h1>
+      <h1>
+        {language === "pt" ? (
+          <>
+            Lista do <em>jogo.</em>
+          </>
+        ) : (
+          <>
+            Game <em>list.</em>
+          </>
+        )}
+      </h1>
       <p className="intro">
         {label(game)} – {game.endTime} · ({game.duration}
         {localize("minutos", language)}) · {localize("Quadra", language)}{" "}
         {game.courtNumber} · {currencySymbol(game.currency)}{" "}
         {price(game).toFixed(2)} {localize("por pessoa", language)} ·{" "}
         {game.location || localize("Local não informado", language)}
+        {game.cancelled && <> · ({localize("CANCELADO", language)})</>}
       </p>
       {game.disclaimer && (
         <p className="game-disclaimer">
@@ -1521,6 +1631,9 @@ function PlayerView({
                         {localize("min", language)}) ·{" "}
                         {g.location ||
                           localize("Local não informado", language)}
+                        {g.cancelled && (
+                          <> · ({localize("CANCELADO", language)})</>
+                        )}
                       </p>
                       <div className="session-row-actions">
                         <button
@@ -1532,7 +1645,7 @@ function PlayerView({
                         </button>
                         <button
                           className="session-action-button confirm"
-                          disabled={isEnded}
+                          disabled={isEnded || g.cancelled}
                           onClick={() => {
                             choose(g.id);
                             setIsPlayerSearchOpen(true);
@@ -1543,7 +1656,7 @@ function PlayerView({
                         </button>
                         <button
                           className="session-action-button request"
-                          disabled={isEnded}
+                          disabled={isEnded || g.cancelled}
                           onClick={() => {
                             choose(g.id);
                             setActiveAction("request");
@@ -1659,7 +1772,7 @@ function PlayerView({
                 <input
                   autoFocus
                   required
-                  maxLength={12}
+                  maxLength={20}
                   placeholder={localize("Seu nome completo", language)}
                   value={requestName}
                   onChange={(event) => setRequestName(event.target.value)}

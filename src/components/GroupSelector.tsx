@@ -89,9 +89,14 @@ export function GroupSelector({
   const [passcodeError, setPasscodeError] = useState("");
   const [groupToRename, setGroupToRename] = useState<PlayerGroup | null>(null);
   const [renamedGroupName, setRenamedGroupName] = useState("");
+  const [groupError, setGroupError] = useState("");
 
   const createGroup = (event: FormEvent) => {
     event.preventDefault();
+    if (groups.length >= 3) {
+      setGroupError("Você só pode criar até 3 grupos no momento.");
+      return;
+    }
     if (!name.trim() || !passcode.trim()) return;
     onCreate(name.trim(), passcode);
     setName("");
@@ -117,8 +122,8 @@ export function GroupSelector({
         <p className="eyebrow">PLAYUP</p>
         <h1>
           {mode === "organizer"
-            ? localize("Seus grupos", language)
-            : localize("Escolha seu grupo", language)}
+            ? language === "pt" ? <>Seus <em>grupos.</em></> : <>Your <em>groups.</em></>
+            : language === "pt" ? <>Escolha seu <em>grupo.</em></> : <>Choose your <em>group.</em></>}
         </h1>
         <p className="intro">
           {mode === "organizer"
@@ -142,11 +147,12 @@ export function GroupSelector({
             <form onSubmit={createGroup}>
               <input
                 required
-                maxLength={40}
+                maxLength={20}
                 placeholder={localize("Nome do grupo", language)}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
               />
+              {groupError && <small className="error">{localize(groupError, language)}</small>}
               <PasswordField
                 language={language}
                 minLength={4}

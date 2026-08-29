@@ -48,7 +48,7 @@ export function GameForm({
     <form className="game-form" onSubmit={onSubmit}>
       <label className="game-field location-field">
         <span>{text("Local")}</span>
-        <input required placeholder={text("Ex.: Clube Central")} value={draft.location} onChange={(event) => onChange({ ...draft, location: event.target.value })} />
+        <input required maxLength={20} placeholder={text("Ex.: Clube Central")} value={draft.location} onChange={(event) => onChange({ ...draft, location: event.target.value })} />
       </label>
       <label className="game-field date-field">
         <span>{text("Data")}</span>
@@ -77,7 +77,7 @@ export function GameForm({
       <label className="game-field cost-field">
         <span>{text("Valor da quadra")}</span>
         <span className="currency-input">
-          <input required min="1" type="number" placeholder={text("Ex.: 120")} value={draft.courtCost || ""} onChange={(event) => onChange({ ...draft, courtCost: +event.target.value })} />
+          <input required min="1" max="999" type="number" placeholder={text("Ex.: 120")} value={draft.courtCost || ""} onChange={(event) => onChange({ ...draft, courtCost: +event.target.value })} />
           <select value={draft.currency} onChange={(event) => onChange({ ...draft, currency: event.target.value as GameDraft["currency"] })}>
             <option value="EUR">{text("Euro (€)")}</option>
             <option value="USD">{text("Dólar ($)")}</option>
@@ -88,19 +88,19 @@ export function GameForm({
       </label>
       <label className="game-field players-field">
         <span>{text("Máximo de jogadores")}</span>
-        <input required min="2" type="number" placeholder={text("Ex.: 12")} value={draft.maxPlayers || ""} onChange={(event) => onChange({ ...draft, maxPlayers: +event.target.value })} />
+        <input required min="2" max="999" type="number" placeholder={text("Ex.: 12")} value={draft.maxPlayers || ""} onChange={(event) => onChange({ ...draft, maxPlayers: +event.target.value })} />
       </label>
       <label className="game-field court-field">
         <span>{text("Número da quadra")}</span>
-        <input placeholder={text("Ex.: 3")} value={draft.courtNumber} onChange={(event) => onChange({ ...draft, courtNumber: event.target.value })} />
+        <input maxLength={20} placeholder={text("Ex.: 3")} value={draft.courtNumber} onChange={(event) => onChange({ ...draft, courtNumber: event.target.value })} />
       </label>
       <label className="game-field payment-field">
         <span>{text("Informações de pagamento")}</span>
-        <input required placeholder={text("Ex.: Pix, PayPal ou conta bancária")} value={draft.paymentInfo} onChange={(event) => onChange({ ...draft, paymentInfo: event.target.value })} />
+        <input required maxLength={20} placeholder={text("Ex.: Pix, PayPal ou conta bancária")} value={draft.paymentInfo} onChange={(event) => onChange({ ...draft, paymentInfo: event.target.value })} />
       </label>
       <label className="game-field disclaimer-field">
         <span>{text("Aviso aos jogadores (opcional)")}</span>
-        <input maxLength={100} placeholder={text("Ex.: Chegue 15 minutos antes")} value={draft.disclaimer ?? ""} onChange={(event) => onChange({ ...draft, disclaimer: event.target.value })} />
+        <input maxLength={20} placeholder={text("Ex.: Chegue 15 minutos antes")} value={draft.disclaimer ?? ""} onChange={(event) => onChange({ ...draft, disclaimer: event.target.value })} />
       </label>
       <button className="primary submit-game">{text(isEditing ? "Salvar alterações" : "Criar jogo")}</button>
       <button type="button" className="text-button" onClick={onCancel}>{text("Cancelar")}</button>

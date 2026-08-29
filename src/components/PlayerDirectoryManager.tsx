@@ -125,7 +125,7 @@ export function PlayerDirectoryManager({
             <form className="player-form" onSubmit={savePlayer}>
               <input
                 required
-                maxLength={12}
+                maxLength={20}
                 placeholder={localize("Nome", language)}
                 value={draft.name}
                 onChange={(event) =>

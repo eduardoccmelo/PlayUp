@@ -481,6 +481,15 @@ header {
   padding: 38px 0 0;
   text-align: center;
 }
+.game-hero {
+  position: relative;
+}
+.hero-game-action {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+}
 .game-event-summary {
   max-width: 900px;
   margin: -8px auto 0;
@@ -493,6 +502,80 @@ header {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+.game-controls {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 18px 0;
+}
+.game-controls label {
+  display: grid;
+  gap: 6px;
+  color: #486052;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+.game-controls select {
+  min-height: var(--action-button-height);
+  padding: 0 10px;
+  border: 1px solid #cdd9cf;
+  border-radius: 8px;
+  background: #fff;
+}
+.game-cancelled {
+  margin: 16px 0;
+  color: #b83a2c;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+.balance-availability {
+  margin: 0 0 12px;
+  color: #486052;
+  font-size: 13px;
+}
+.minimum-players-control {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e4ece5;
+  text-align: left;
+}
+.minimum-players-control > label:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #244632;
+  font-size: 14px;
+  font-weight: 700;
+}
+.minimum-players-select {
+  display: grid;
+  width: fit-content;
+  gap: 6px;
+  color: #486052;
+  font-size: 13px;
+  font-weight: 700;
+}
+.minimum-players-select select {
+  min-height: var(--action-button-height);
+  padding: 0 10px;
+  border: 1px solid #cdd9cf;
+  border-radius: 8px;
+  background: #fff;
+}
+.readonly-game-view {
+  padding-top: 38px;
+}
+.readonly-game-view .game-cancelled {
+  margin: 14px 0 18px;
+}
+.readonly-stat-grid {
+  margin: 22px auto 18px;
 }
 .player-count strong {
   font-size: 30px;
@@ -1288,7 +1371,7 @@ header {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 260px;
+  min-height: 275px;
   margin-top: 0;
 }
 .teams {

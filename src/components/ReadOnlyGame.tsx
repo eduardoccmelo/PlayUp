@@ -11,8 +11,13 @@ type ReadOnlyGameProps = {
 };
 
 export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGameProps) {
+  const paidPlayers = game.paidPlayerIds.filter((playerId) =>
+    game.playerIds.includes(playerId),
+  );
+
   return (
-    <section className="participant-dashboard past-game">
+    <section className="participant-dashboard past-game readonly-game-view">
+      {game.cancelled && <p className="game-cancelled">{localize("CANCELADO", language)}</p>}
       {onDelete && (
         <div className="game-actions">
           <button className="text-button danger" onClick={onDelete}>
@@ -21,14 +26,35 @@ export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGame
         </div>
       )}
       <p className="eyebrow">{localize("EVENTO", language)}</p>
-      <h1>{localize("Lista do jogo", language)}</h1>
+      <h1>
+        {language === "pt" ? <>Lista do <em>jogo.</em></> : <>Game <em>list.</em></>}
+      </h1>
       <p className="intro">
         {gameLabel(game)} – {game.endTime} · ({game.duration} {localize("minutos", language)}) ·{" "}
         {localize("Quadra", language)} {game.courtNumber} · {currencySymbol(game.currency)}{" "}
         {pricePerPlayer(game).toFixed(2)} {localize("por pessoa", language)} ·{" "}
         {game.location || localize("Local não informado", language)}
+        {game.cancelled && <> · ({localize("CANCELADO", language)})</>}
       </p>
       {game.disclaimer && <p className="game-disclaimer"><strong>{localize("Aviso", language)}:</strong> {game.disclaimer}</p>}
+      <section className="stat-grid readonly-stat-grid">
+        <div>
+          <strong>{game.playerIds.length}/{game.maxPlayers}</strong>
+          <span>{localize("na lista", language)}</span>
+        </div>
+        <div>
+          <strong>{game.waitlistIds.length}</strong>
+          <span>{localize("lista de espera", language)}</span>
+        </div>
+        <div>
+          <strong>{paidPlayers.length}</strong>
+          <span>{localize("pagos / confirmados", language)}</span>
+        </div>
+        <div>
+          <strong>{currencySymbol(game.currency)} {pricePerPlayer(game).toFixed(2)}</strong>
+          <span>{localize("por jogador", language)}</span>
+        </div>
+      </section>
       <div className="participant-grid">
         <section className="panel readonly-list">
           <h2>{localize("Participantes", language)} ({game.playerIds.length}/{game.maxPlayers})</h2>
