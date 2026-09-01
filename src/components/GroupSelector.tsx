@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { localize, type Language } from "../i18n";
 import type { PlayerGroup } from "../types";
+import { normalizeText } from "../utils/game";
 import { Header } from "./Header";
 
 type GroupAction = {
@@ -98,6 +99,10 @@ export function GroupSelector({
       return;
     }
     if (!name.trim() || !passcode.trim()) return;
+    if (groups.some((group) => normalizeText(group.name) === normalizeText(name))) {
+      setGroupError("Já existe um grupo com esse nome.");
+      return;
+    }
     onCreate(name.trim(), passcode);
     setName("");
     setPasscode("");
@@ -111,6 +116,7 @@ export function GroupSelector({
   };
   const closeGroupAction = () => setGroupAction(null);
   const openRenameDialog = (group: PlayerGroup) => {
+    setGroupError("");
     setGroupToRename(group);
     setRenamedGroupName(group.name);
   };
@@ -134,7 +140,13 @@ export function GroupSelector({
 
       {mode === "organizer" && !isCreating && (
         <div className="create-game-action">
-          <button className="secondary" onClick={() => setIsCreating(true)}>
+          <button
+            className="secondary"
+            onClick={() => {
+              setGroupError("");
+              setIsCreating(true);
+            }}
+          >
             + {localize("Criar grupo", language)}
           </button>
         </div>
@@ -231,6 +243,16 @@ export function GroupSelector({
                 event.preventDefault();
                 const nextName = renamedGroupName.trim();
                 if (!nextName) return;
+                if (
+                  groups.some(
+                    (group) =>
+                      group.id !== groupToRename.id &&
+                      normalizeText(group.name) === normalizeText(nextName),
+                  )
+                ) {
+                  setGroupError("Já existe um grupo com esse nome.");
+                  return;
+                }
                 onRename(groupToRename.id, nextName);
                 setGroupToRename(null);
               }}
@@ -244,6 +266,7 @@ export function GroupSelector({
                 value={renamedGroupName}
                 onChange={(event) => setRenamedGroupName(event.target.value)}
               />
+              {groupError && <small className="error">{localize(groupError, language)}</small>}
               <div className="confirm-dialog-actions">
                 <button className="secondary" type="button" onClick={() => setGroupToRename(null)}>{localize("Cancelar", language)}</button>
                 <button className="primary">{localize("Salvar", language)}</button>

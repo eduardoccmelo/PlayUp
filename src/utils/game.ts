@@ -25,6 +25,10 @@ export const availableTimeSlots = Array.from({ length: 68 }, (_, index) => {
 
 export const today = new Date().toLocaleDateString("en-CA");
 
+export function normalizeText(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
 export function gameTimestamp(game: GameSession, time = game.time) {
   const [year, month, day] = game.date.split("-").map(Number);
   const [hours, minutes] = (time || "00:00").split(":").map(Number);

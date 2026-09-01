@@ -35,6 +35,7 @@ import {
   pricePerPlayer as price,
   today,
   gameTimestamp,
+  normalizeText,
   weekdayName,
 } from "../utils/game";
 const emptyPlayer = {
@@ -169,6 +170,7 @@ export function PlayUpApp() {
   const [entered, setEntered] = useState(false);
   const [notice, setNotice] = useState("");
   const [balanceNotice, setBalanceNotice] = useState("");
+  const [cancellationNotice, setCancellationNotice] = useState("");
   const [requestName, setRequestName] = useState("");
   const [gameToDelete, setGameToDelete] = useState<GameSession | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<(() => void) | null>(
@@ -184,7 +186,7 @@ export function PlayUpApp() {
     const nextGames = games.map((gameSession) => {
       const minimum = gameSession.minPlayers;
       const cancellationDeadline =
-        gameTimestamp(gameSession) - 4 * 60 * 60 * 1000;
+        gameTimestamp(gameSession) - (gameSession.cancellationHours ?? 2) * 60 * 60 * 1000;
       const shouldCancel =
         minimum !== null &&
         !gameSession.cancelled &&
@@ -281,6 +283,21 @@ export function PlayUpApp() {
       ),
     );
   };
+  const updateCancellationSettings = (
+    gameSession: GameSession,
+    changes: Partial<Pick<GameSession, "minPlayers" | "cancellationHours">>,
+  ) => {
+    const nextGame = { ...gameSession, ...changes };
+    const cancellationTime = gameTimestamp(nextGame) - nextGame.cancellationHours * 60 * 60 * 1000;
+
+    if (nextGame.minPlayers !== null && cancellationTime < Date.now()) {
+      setCancellationNotice("O horário de cancelamento é anterior ao horário de criação do evento.");
+      return;
+    }
+
+    setCancellationNotice("");
+    updateGame(nextGame, false);
+  };
   const createOrEdit = (e: FormEvent) => {
     e.preventDefault();
     if (
@@ -301,6 +318,19 @@ export function PlayUpApp() {
     }
     if (!editGame && gameForm.date < today) {
       setNotice("Não é possível criar um jogo em uma data passada.");
+      return;
+    }
+    if (
+      games.some(
+        (storedGame) =>
+          storedGame.id !== editGame &&
+          storedGame.date === gameForm.date &&
+          storedGame.time === gameForm.time &&
+          normalizeText(storedGame.location) === normalizeText(gameForm.location) &&
+          normalizeText(storedGame.courtNumber) === normalizeText(gameForm.courtNumber),
+      )
+    ) {
+      setNotice("Já existe um jogo com esses mesmos dados.");
       return;
     }
     if (editGame) {
@@ -334,10 +364,11 @@ export function PlayUpApp() {
         paidPlayerIds: [],
         teams: null,
         minPlayers: null,
+        cancellationHours: 2,
         cancelled: false,
       };
       saveGames([...games, g]);
-      setGameId(null);
+      setGameId(g.id);
       setIsGameCreationOpen(false);
       setNotice("Jogo criado.");
     }
@@ -356,7 +387,7 @@ export function PlayUpApp() {
     if (
       players.some(
         (p) =>
-          p.name.toLowerCase() === name.toLowerCase() && p.id !== editPlayer,
+          normalizeText(p.name) === normalizeText(name) && p.id !== editPlayer,
       )
     ) {
       setNotice("Esse nome já está na lista.");
@@ -477,8 +508,8 @@ export function PlayUpApp() {
       return false;
     }
     if (
-      players.some((p) => p.name.toLowerCase() === name.toLowerCase()) ||
-      requests.some((r) => r.name.toLowerCase() === name.toLowerCase())
+      players.some((p) => normalizeText(p.name) === normalizeText(name)) ||
+      requests.some((r) => normalizeText(r.name) === normalizeText(name))
     ) {
       setNotice("Esse nome já está cadastrado ou já foi solicitado.");
       return false;
@@ -492,7 +523,7 @@ export function PlayUpApp() {
     return true;
   };
   const approveRequest = (r: ParticipationRequest) => {
-    if (players.some((p) => p.name.toLowerCase() === r.name.toLowerCase())) {
+    if (players.some((p) => normalizeText(p.name) === normalizeText(r.name))) {
       setNotice("Esse nome já está cadastrado.");
       return;
     }
@@ -852,8 +883,7 @@ export function PlayUpApp() {
             if (
               players.some(
                 (existingPlayer) =>
-                  existingPlayer.name.toLocaleLowerCase() ===
-                  player.name.toLocaleLowerCase(),
+                  normalizeText(existingPlayer.name) === normalizeText(player.name),
               )
             ) {
               setNotice("Esse nome já está na lista.");
@@ -870,8 +900,7 @@ export function PlayUpApp() {
               players.some(
                 (player) =>
                   player.id !== updatedPlayer.id &&
-                  player.name.toLocaleLowerCase() ===
-                    updatedPlayer.name.toLocaleLowerCase(),
+                  normalizeText(player.name) === normalizeText(updatedPlayer.name),
               )
             ) {
               setNotice("Esse nome já está na lista.");
@@ -1200,27 +1229,22 @@ export function PlayUpApp() {
                     <input
                       checked={game.minPlayers !== null}
                       onChange={(event) =>
-                        updateGame(
-                          {
-                            ...game,
-                            minPlayers: event.target.checked ? 2 : null,
-                          },
-                          false,
-                        )
+                        updateCancellationSettings(game, {
+                          minPlayers: event.target.checked ? 10 : null,
+                          cancellationHours: game.cancellationHours ?? 2,
+                        })
                       }
                       type="checkbox"
                     />
                     {localize("Definir mínimo de jogadores", language)}
                   </label>
                   {game.minPlayers !== null && (
+                    <>
                     <label className="minimum-players-select">
                       <select
                         value={game.minPlayers}
                         onChange={(event) =>
-                          updateGame(
-                            { ...game, minPlayers: +event.target.value },
-                            false,
-                          )
+                          updateCancellationSettings(game, { minPlayers: +event.target.value })
                         }
                       >
                         {Array.from(
@@ -1233,7 +1257,15 @@ export function PlayUpApp() {
                         ))}
                       </select>
                     </label>
+                    <label className="minimum-players-select">
+                      {localize("Cancelar antes do evento", language)}
+                      <select value={game.cancellationHours ?? 2} onChange={(event) => updateCancellationSettings(game, { cancellationHours: +event.target.value })}>
+                        {[1, 2, 3, 4, 5, 6, 12, 24].map((hours) => <option key={hours} value={hours}>{hours} {localize(hours === 1 ? "hora" : "horas", language)}</option>)}
+                      </select>
+                    </label>
+                    </>
                   )}
+                  {cancellationNotice && <small className="error">{localize(cancellationNotice, language)}</small>}
                 </section>
               </section>
               <aside className="side-column">
