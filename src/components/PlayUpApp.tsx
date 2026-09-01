@@ -76,10 +76,11 @@ const TrashIcon = () => (
 );
 
 export function PlayUpApp() {
-  const [language, setLanguage] = useLocalStorage<"pt" | "en">(
-    "playup.language",
-    browserLanguage(),
+  const [languagePreference, setLanguage] = useLocalStorage<"pt" | "en" | null>(
+    "playup.language.preference",
+    null,
   );
+  const language = languagePreference ?? browserLanguage();
   useEffect(() => {
     localizePage(language);
   });
