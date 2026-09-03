@@ -2030,13 +2030,13 @@ header {
   }
   .game-form .date-field input {
     max-width: 100%;
-    padding-inline: 10px;
+    padding-inline: 5px;
   }
   .game-date-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .game-date-row .date-field {
-    overflow: visible;
+    overflow: hidden;
   }
   .game-date-row .date-field input {
     inline-size: 100%;
@@ -2223,6 +2223,25 @@ header {
   }
   .teams-section {
     padding: 15px;
+  }
+}
+@media (max-width: 425px) {
+  .game-date-row .date-field,
+  .game-date-row .weekday-field {
+    min-width: 0;
+  }
+  .game-date-row .date-field input[type="date"] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding-inline: 3px;
+    font-size: 12px;
+  }
+  .game-date-row .weekday-field output {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 @media (max-width: 720px) {
