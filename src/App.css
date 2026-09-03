@@ -2030,19 +2030,23 @@ header {
   }
   .game-form .date-field input {
     max-width: 100%;
-    padding-inline: 5px;
-    font-size: 14px;
+    padding-inline: 10px;
   }
   .game-date-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
   .game-date-row .date-field {
-    overflow: hidden;
+    overflow: visible;
   }
   .game-date-row .date-field input {
     inline-size: 100%;
     max-inline-size: 100%;
     min-inline-size: 0;
+  }
+  .game-form .start-field select,
+  .game-form .duration-field select {
+    height: 44px;
+    min-height: 44px;
   }
   .currency-input .currency-select-full {
     display: none;
