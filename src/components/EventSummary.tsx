@@ -40,18 +40,24 @@ export function CompactGameDetails({ game, language }: Omit<EventSummaryProps, "
   const court = game.courtNumber.trim()
     ? `${localize("Quadra", language)} ${game.courtNumber}`
     : localize("Quadra N/D", language);
+  const weekday = weekdayName(game.date, language === "pt" ? "pt-BR" : "en-GB");
+  const shortWeekday = weekday
+    .slice(0, 3)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 
   return (
     <p className="session-details" title={game.location}>
       <span className="session-detail-date">
         <strong>{game.date.split("-").reverse().join("/")}</strong>{" "}
-        ({weekdayName(game.date, language === "pt" ? "pt-BR" : "en-GB")})
+        (<span className="weekday-name-full">{weekday}</span>
+        <span className="weekday-name-short">{shortWeekday}</span>)
       </span>
       <span className="session-detail-location">
         {game.location || localize("Local não informado", language)}
       </span>
       <span className="session-detail-time">
-        {game.time} – {game.endTime} ({game.duration} {localize("min", language)})
+        {game.time}<span className="session-detail-end-time"> – {game.endTime}</span> ({game.duration} {localize("min", language)})
       </span>
       {!game.cancelled && (
         <span className="session-detail-court">{court}</span>

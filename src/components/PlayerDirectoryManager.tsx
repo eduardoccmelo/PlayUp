@@ -50,6 +50,9 @@ export function PlayerDirectoryManager({
     );
     closeModal();
   };
+  const sortedPlayers = [...players].sort((first, second) =>
+    first.name.localeCompare(second.name, language === "pt" ? "pt-BR" : "en"),
+  );
 
   return (
     <section className="directory-manager">
@@ -73,7 +76,7 @@ export function PlayerDirectoryManager({
 
       <div className="directory-player-results directory-player-list">
         {players.length ? (
-          players.map((player) => (
+          sortedPlayers.map((player) => (
             <div key={player.id}>
               <span>{player.name}</span>
               <button

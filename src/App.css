@@ -662,6 +662,9 @@ header {
 .readonly-game-view .game-cancelled {
   margin: 14px 0 18px;
 }
+.readonly-game-view .event-summary {
+  text-align: center;
+}
 .readonly-stat-grid {
   margin: 22px auto 18px;
 }
@@ -811,6 +814,9 @@ header {
   color: #b83a2c;
   font-weight: 800;
 }
+.weekday-name-short {
+  display: none;
+}
 .past-game {
   margin: 18px auto 0;
 }
@@ -944,6 +950,10 @@ header {
   color: #244632;
   font-size: 14px;
 }
+.date-field input,
+.weekday-field output {
+  min-width: 0;
+}
 .submit-game,
 .game-form > .text-button {
   grid-column: span 2;
@@ -964,16 +974,25 @@ header {
   background: #fff;
 }
 .currency-input select {
-  width: 126px;
-  min-width: 126px;
+  width: 50%;
+  min-width: 0;
+  flex: 1 1 50%;
   border: 0;
   border-left: 1px solid #d4dfd5;
   border-radius: 0;
   padding: 0 8px;
   font: inherit;
 }
+.currency-input .currency-select-compact {
+  display: none;
+}
+.duration-select-compact {
+  display: none;
+}
 .currency-input input {
+  width: 50%;
   min-width: 0;
+  flex: 1 1 50%;
   border: 0;
   border-radius: 0;
 }
@@ -1652,6 +1671,9 @@ header {
 }
 .game-disclaimer {
   margin: 10px 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #fff0e9;
   color: #91461f;
 }
 .request-form input {
@@ -1736,6 +1758,14 @@ header {
   }
   .game-hero .event-summary-location,
   .game-hero .event-summary-court {
+    text-align: left;
+  }
+  .readonly-game-view .event-summary-date,
+  .readonly-game-view .event-summary-time {
+    text-align: right;
+  }
+  .readonly-game-view .event-summary-location,
+  .readonly-game-view .event-summary-court {
     text-align: left;
   }
   .side-column .teams {
@@ -1852,6 +1882,19 @@ header {
     align-items: flex-start;
     flex-direction: column;
   }
+  .directory-manager-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    text-align: left;
+  }
+  .directory-manager-title,
+  .directory-add-button {
+    width: 100%;
+    text-align: left;
+  }
+  .directory-add-button {
+    justify-content: center;
+  }
   .game-hero > div {
     width: 100%;
   }
@@ -1897,6 +1940,14 @@ header {
   }
   .game-hero .event-summary-location,
   .game-hero .event-summary-court {
+    text-align: left;
+  }
+  .readonly-game-view .event-summary-date,
+  .readonly-game-view .event-summary-time {
+    text-align: right;
+  }
+  .readonly-game-view .event-summary-location,
+  .readonly-game-view .event-summary-court {
     text-align: left;
   }
   .event-summary-court {
@@ -1961,6 +2012,28 @@ header {
   }
   .game-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .game-form .date-field input {
+    padding-inline: 5px;
+    font-size: 14px;
+  }
+  .currency-input .currency-select-full {
+    display: none;
+  }
+  .currency-input .currency-select-compact {
+    display: block;
+    width: 35%;
+    flex-basis: 35%;
+  }
+  .currency-input input {
+    width: 65%;
+    flex-basis: 65%;
+  }
+  .duration-select-full {
+    display: none;
+  }
+  .duration-select-compact {
+    display: block;
   }
   .player-form {
     grid-template-columns: 1fr;
@@ -2047,6 +2120,13 @@ header {
   }
 }
 @media (max-width: 600px) {
+  .weekday-name-short {
+    display: inline;
+  }
+  .weekday-name-full,
+  .session-detail-end-time {
+    display: none;
+  }
   .group-row {
     align-items: flex-start;
     flex-direction: column;

@@ -29,7 +29,7 @@ export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGame
       <h1>
         {language === "pt" ? <>Lista do <em>jogo.</em></> : <>Game <em>list.</em></>}
       </h1>
-      <EventSummary className="intro" game={game} language={language} />
+      <EventSummary className="game-event-summary" game={game} language={language} />
       {game.disclaimer && <p className="game-disclaimer"><strong>{localize("Aviso", language)}:</strong> {game.disclaimer}</p>}
       <section className="stat-grid readonly-stat-grid">
         <div>

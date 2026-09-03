@@ -61,16 +61,22 @@ export function GameForm({
       <label className="game-field start-field">
         <span>{text("Horário de início")}</span>
         <select required value={draft.time} onChange={(event) => onChange({ ...draft, time: event.target.value })}>
-          <option value="">{text("Selecione um horário")}</option>
+          <option value="">{text("Selecione...")}</option>
           {availableTimeSlots.map((timeSlot) => <option key={timeSlot} value={timeSlot}>{timeSlot}</option>)}
         </select>
       </label>
       <label className="game-field duration-field">
         <span>{text("Duração (min)")}</span>
-        <select required value={draft.duration || ""} onChange={(event) => onChange({ ...draft, duration: +event.target.value })}>
-          <option value="">{text("Selecione a duração")}</option>
+        <select className="duration-select-full" required value={draft.duration || ""} onChange={(event) => onChange({ ...draft, duration: +event.target.value })}>
+          <option value="">{text("Selecione...")}</option>
           {durationOptions.map((duration) => (
             <option key={duration} value={duration}>{durationLabel(duration, language)}</option>
+          ))}
+        </select>
+        <select aria-label={text("Duração (min)")} className="duration-select-compact" required value={draft.duration || ""} onChange={(event) => onChange({ ...draft, duration: +event.target.value })}>
+          <option value="">{text("Selecione...")}</option>
+          {durationOptions.map((duration) => (
+            <option key={duration} value={duration}>{duration} min</option>
           ))}
         </select>
       </label>
@@ -78,11 +84,17 @@ export function GameForm({
         <span>{text("Valor da quadra")}</span>
         <span className="currency-input">
           <input required min="1" max="999" type="number" placeholder={text("Ex.: 120")} value={draft.courtCost || ""} onChange={(event) => onChange({ ...draft, courtCost: +event.target.value })} />
-          <select value={draft.currency} onChange={(event) => onChange({ ...draft, currency: event.target.value as GameDraft["currency"] })}>
+          <select className="currency-select-full" value={draft.currency} onChange={(event) => onChange({ ...draft, currency: event.target.value as GameDraft["currency"] })}>
             <option value="EUR">{text("Euro (€)")}</option>
             <option value="USD">{text("Dólar ($)")}</option>
             <option value="GBP">{text("Libra (£)")}</option>
             <option value="BRL">{text("Real (R$)")}</option>
+          </select>
+          <select aria-label={text("Moeda")} className="currency-select-compact" value={draft.currency} onChange={(event) => onChange({ ...draft, currency: event.target.value as GameDraft["currency"] })}>
+            <option value="EUR">€</option>
+            <option value="USD">$</option>
+            <option value="GBP">£</option>
+            <option value="BRL">R$</option>
           </select>
         </span>
       </label>

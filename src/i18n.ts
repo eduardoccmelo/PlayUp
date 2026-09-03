@@ -31,6 +31,7 @@ export const translations: Record<
     "Horário de início": "Start time",
     "Horário de término": "End time",
     "Selecione um horário": "Select a time",
+    "Selecione...": "Select...",
     Moeda: "Currency",
     "Informações de pagamento": "Payment details",
     "Ex.: Clube Central": "E.g. Central Club",
