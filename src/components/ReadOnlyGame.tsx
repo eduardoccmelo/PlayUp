@@ -1,7 +1,8 @@
 import type { GameSession, Player } from "../types";
 import { localize } from "../i18n";
-import { currencySymbol, gameLabel, pricePerPlayer } from "../utils/game";
+import { currencySymbol, pricePerPlayer } from "../utils/game";
 import { Teams } from "./Teams";
+import { EventSummary } from "./EventSummary";
 
 type ReadOnlyGameProps = {
   game: GameSession;
@@ -25,17 +26,10 @@ export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGame
           </button>
         </div>
       )}
-      <p className="eyebrow">{localize("EVENTO", language)}</p>
       <h1>
         {language === "pt" ? <>Lista do <em>jogo.</em></> : <>Game <em>list.</em></>}
       </h1>
-      <p className="intro">
-        {gameLabel(game)} – {game.endTime} · ({game.duration} {localize("minutos", language)}) ·{" "}
-        {localize("Quadra", language)} {game.courtNumber} · {currencySymbol(game.currency)}{" "}
-        {pricePerPlayer(game).toFixed(2)} {localize("por pessoa", language)} ·{" "}
-        {game.location || localize("Local não informado", language)}
-        {game.cancelled && <> · ({localize("CANCELADO", language)})</>}
-      </p>
+      <EventSummary className="intro" game={game} language={language} />
       {game.disclaimer && <p className="game-disclaimer"><strong>{localize("Aviso", language)}:</strong> {game.disclaimer}</p>}
       <section className="stat-grid readonly-stat-grid">
         <div>
@@ -55,29 +49,44 @@ export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGame
           <span>{localize("por jogador", language)}</span>
         </div>
       </section>
-      <div className="participant-grid">
+      <div className={`participant-grid ${game.teams ? "" : "without-teams"}`}>
         <section className="panel readonly-list">
-          <h2>{localize("Participantes", language)} ({game.playerIds.length}/{game.maxPlayers})</h2>
-          {game.playerIds.map((playerId, index) => {
-            const player = players.find((item) => item.id === playerId);
-            const isPaid = game.paidPlayerIds.includes(playerId);
-            return (
-              <div className="readonly-row" key={playerId}>
-                <strong>{index + 1} - {player?.name}</strong>
-                <span className={`payment ${isPaid ? "paid" : ""}`}>
-                  {localize(isPaid ? "Pago" : "Pendente", language)}
-                </span>
-              </div>
-            );
-          })}
-          <h2 className="wait-title">{localize("Lista de espera", language)}</h2>
-          {game.waitlistIds.map((playerId, index) => (
-            <p className="wait-row" key={playerId}>
-              {game.playerIds.length + index + 1} - {players.find((item) => item.id === playerId)?.name}
-            </p>
-          ))}
+          {game.playerIds.length === 0 ? (
+            <p className="empty readonly-empty">{localize("A lista está vazia.", language)}</p>
+          ) : (
+            <>
+              <h2>{localize("Participantes", language)} ({game.playerIds.length}/{game.maxPlayers})</h2>
+              {game.playerIds.map((playerId, index) => {
+                const player = players.find((item) => item.id === playerId);
+                const isPaid = game.paidPlayerIds.includes(playerId);
+                return (
+                  <div className={`readonly-row ${isPaid ? "is-paid" : ""}`} key={playerId}>
+                    <strong>{index + 1} - {player?.name}</strong>
+                    <span
+                      aria-label={localize(isPaid ? "Pago" : "Pendente", language)}
+                      className={`readonly-payment-mark ${isPaid ? "paid" : "pending"}`}
+                    >
+                      {isPaid ? "✓" : "×"}
+                    </span>
+                  </div>
+                );
+              })}
+              <section className="waiting-list">
+                <p className="waiting-list-label">{localize("LISTA DE ESPERA", language)}</p>
+                {game.waitlistIds.map((playerId, index) => (
+                  <p className="wait-row" key={playerId}>
+                    {game.playerIds.length + index + 1} - {players.find((item) => item.id === playerId)?.name}
+                  </p>
+                ))}
+              </section>
+            </>
+          )}
         </section>
-        <section className="participant-teams">{game.teams && <Teams teams={game.teams} language={language} />}</section>
+        {game.teams && (
+          <section className="participant-teams">
+            <Teams teams={game.teams} language={language} />
+          </section>
+        )}
       </div>
     </section>
   );

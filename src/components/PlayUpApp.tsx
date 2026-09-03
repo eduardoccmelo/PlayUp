@@ -24,19 +24,18 @@ import { LandingPage } from "./LandingPage";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PlayerDirectoryManager } from "./PlayerDirectoryManager";
 import { GroupSelector } from "./GroupSelector";
+import { CompactGameDetails, EventSummary } from "./EventSummary";
 import {
   compareGameStartTime as chronological,
   currencySymbol,
   endTimeFromDuration,
   emptyGameDraft as emptyGame,
-  gameLabel as label,
   hasGameEnded,
   isVisibleToParticipants as visibleToPlayers,
   pricePerPlayer as price,
   today,
   gameTimestamp,
   normalizeText,
-  weekdayName,
 } from "../utils/game";
 const emptyPlayer = {
   name: "",
@@ -523,7 +522,70 @@ export function PlayUpApp() {
     setNotice("Solicitação enviada ao organizador.");
     return true;
   };
+  const requestLeave = () => {
+    if (!game || !pick) return false;
+    const player = players.find(
+      (item) => item.name.toLocaleLowerCase() === pick.toLocaleLowerCase(),
+    );
+    if (!player) {
+      setNotice("Escolha um nome válido da busca.");
+      return false;
+    }
+    const isOnGameList =
+      game.playerIds.includes(player.id) || game.waitlistIds.includes(player.id);
+    if (!isOnGameList) {
+      setNotice("Esse jogador não está na lista deste jogo.");
+      return false;
+    }
+    if (
+      requests.some(
+        (request) =>
+          request.type === "leave" &&
+          request.gameId === game.id &&
+          request.playerId === player.id,
+      )
+    ) {
+      setNotice("Já existe uma solicitação de saída para este jogador.");
+      return false;
+    }
+    setRequests([
+      ...requests,
+      {
+        id: nextIdentifier(requests),
+        name: player.name,
+        gameId: game.id,
+        playerId: player.id,
+        type: "leave",
+      },
+    ]);
+    setNotice("Solicitação de saída enviada ao organizador.");
+    return true;
+  };
   const approveRequest = (r: ParticipationRequest) => {
+    if (r.type === "leave") {
+      const requestedGame = games.find((gameSession) => gameSession.id === r.gameId);
+      const playerId = r.playerId;
+      if (requestedGame && playerId !== undefined) {
+        const playerWasPlaying = requestedGame.playerIds.includes(playerId);
+        const updatedGame = fillOpenSpots({
+          ...requestedGame,
+          playerIds: requestedGame.playerIds.filter((id) => id !== playerId),
+          waitlistIds: requestedGame.waitlistIds.filter((id) => id !== playerId),
+          paidPlayerIds: requestedGame.paidPlayerIds.filter((id) => id !== playerId),
+        });
+        saveGames(
+          games.map((gameSession) =>
+            gameSession.id === requestedGame.id
+              ? playerWasPlaying
+                ? refreshTeams(updatedGame, players)
+                : updatedGame
+              : gameSession,
+          ),
+        );
+      }
+      setRequests(requests.filter((request) => request.id !== r.id));
+      return;
+    }
     if (players.some((p) => normalizeText(p.name) === normalizeText(r.name))) {
       setNotice("Esse nome já está cadastrado.");
       return;
@@ -648,6 +710,7 @@ export function PlayUpApp() {
           setGameId(g);
           setEntered(false);
           setPick("");
+          setNotice("");
         }}
         backToGameSelection={() => {
           setGameId(null);
@@ -670,6 +733,7 @@ export function PlayUpApp() {
         requestName={requestName}
         setRequestName={setRequestName}
         request={requestParticipation}
+        requestLeave={requestLeave}
         notice={notice}
         language={language}
       />
@@ -677,6 +741,7 @@ export function PlayUpApp() {
   if (access === "admin" && requests.length)
     return (
       <ParticipationRequests
+        games={games}
         language={language}
         requests={requests}
         onApprove={approveRequest}
@@ -736,35 +801,35 @@ export function PlayUpApp() {
       />
       {game && !hasGameEnded(game) ? (
         <section className="hero game-hero">
+          {game.cancelled && (
+            <span className="game-cancelled-tag">
+              {localize("CANCELADO", language)}
+            </span>
+          )}
           <div>
-            <p className="eyebrow">{localize("ORGANIZADOR", language)}</p>
             <h1>
               {localize("Gerencie o", language)}{" "}
               <em>{localize("jogo.", language)}</em>
             </h1>
-            <p className="game-event-summary">
-              {label(game)} – {game.endTime} · ({game.duration}{" "}
-              {localize("minutos", language)}) · {localize("Quadra", language)}{" "}
-              {game.courtNumber} · {currencySymbol(game.currency)}{" "}
-              {price(game).toFixed(2)} {localize("por pessoa", language)} ·{" "}
-              {game.location || localize("Local não informado", language)}
-            </p>
+            <EventSummary game={game} language={language} />
           </div>
-          <button
-            className={`hero-game-action ${game.cancelled ? "secondary" : "session-action-button delete"}`}
-            onClick={() =>
-              updateGame(
-                {
-                  ...game,
-                  cancelled: !game.cancelled,
-                  teams: game.cancelled ? game.teams : null,
-                },
-                false,
-              )
-            }
-          >
-            {localize(game.cancelled ? "Reativar jogo" : "Cancelar jogo", language)}
-          </button>
+          <div className="hero-game-actions">
+            <button
+              className={`hero-game-action session-action-button ${game.cancelled ? "reactivate-game" : "delete"}`}
+              onClick={() =>
+                updateGame(
+                  {
+                    ...game,
+                    cancelled: !game.cancelled,
+                    teams: game.cancelled ? game.teams : null,
+                  },
+                  false,
+                )
+              }
+            >
+              {localize(game.cancelled ? "Reativar jogo" : "Cancelar jogo", language)}
+            </button>
+          </div>
         </section>
       ) : !game ? (
         <section className="game-directory-heading">
@@ -772,18 +837,16 @@ export function PlayUpApp() {
             {localize("Gerenciar", language)}{" "}
             <em>{localize("jogos.", language)}</em>
           </h1>
-          {!isGameCreationOpen && !editGame && (
-            <button
-              className="session-action-button edit new-game-button"
-              onClick={() => {
-                setEditGame(null);
-                setGameForm(emptyGame);
-                setIsGameCreationOpen(true);
-              }}
-            >
-              + {localize("Novo jogo", language)}
-            </button>
-          )}
+          <button
+            className="session-action-button edit new-game-button"
+            onClick={() => {
+              setEditGame(null);
+              setGameForm(emptyGame);
+              setIsGameCreationOpen(true);
+            }}
+          >
+            + {localize("Novo jogo", language)}
+          </button>
         </section>
       ) : null}
       {!game && (
@@ -798,23 +861,7 @@ export function PlayUpApp() {
                     className={`session-row ${gameSession.id === gameId ? "active" : ""} ${isPastGame ? "ended" : ""}`}
                     key={gameSession.id}
                   >
-                    <p className="session-details">
-                      <strong>
-                        {gameSession.date.split("-").reverse().join("/")}
-                      </strong>{" "}
-                      (
-                      {weekdayName(
-                        gameSession.date,
-                        language === "pt" ? "pt-BR" : "en-GB",
-                      )}
-                      ) · {gameSession.time} – {gameSession.endTime} (
-                      {gameSession.duration} {localize("min", language)}) ·{" "}
-                      {gameSession.location ||
-                        localize("Local não informado", language)}
-                      {gameSession.cancelled && (
-                        <> · ({localize("CANCELADO", language)})</>
-                      )}
-                    </p>
+                    <CompactGameDetails game={gameSession} language={language} />
                     <div className="session-row-actions">
                       <button
                         className="session-action-button view"
@@ -927,12 +974,7 @@ export function PlayUpApp() {
         <ReadOnlyGame game={game} players={players} language={language} />
       ) : (
         game && (
-          <>
-            {game.cancelled && (
-              <p className="game-cancelled">
-                {localize("CANCELADO", language)}
-              </p>
-            )}
+          <fieldset className="game-management-controls" disabled={game.cancelled}>
             <section className="stat-grid">
               <div>
                 <strong>
@@ -1084,89 +1126,91 @@ export function PlayUpApp() {
                             </span>
                           </span>
                         </div>
-                        {game.playerIds.includes(p.id) ? (
-                          <label className="payment-checkbox">
-                            <input
-                              checked={isPaid}
-                              onChange={() => {
-                                const paidIds = isPaid
-                                  ? game.paidPlayerIds.filter((x) => x !== p.id)
-                                  : [...game.paidPlayerIds, p.id];
-                                updateGame({
-                                  ...game,
-                                  paidPlayerIds: paidIds,
-                                  playerIds: paidPlayersFirst(
-                                    game.playerIds,
-                                    paidIds,
-                                  ),
-                                });
-                              }}
-                              type="checkbox"
-                            />
-                            <span>{localize("Pago", language)}</span>
-                          </label>
-                        ) : game.waitlistIds.includes(p.id) ? (
+                        <div className="player-row-actions">
+                          {game.playerIds.includes(p.id) ? (
+                            <label className="payment-checkbox">
+                              <input
+                                checked={isPaid}
+                                onChange={() => {
+                                  const paidIds = isPaid
+                                    ? game.paidPlayerIds.filter((x) => x !== p.id)
+                                    : [...game.paidPlayerIds, p.id];
+                                  updateGame({
+                                    ...game,
+                                    paidPlayerIds: paidIds,
+                                    playerIds: paidPlayersFirst(
+                                      game.playerIds,
+                                      paidIds,
+                                    ),
+                                  });
+                                }}
+                                type="checkbox"
+                              />
+                              <span>{localize("Pago", language)}</span>
+                            </label>
+                          ) : game.waitlistIds.includes(p.id) ? (
+                            <button
+                              aria-label={localize(
+                                "O jogador será incluído na última vaga pendente.",
+                                language,
+                              )}
+                              className="text-button waitlist-include"
+                              data-tooltip={localize(
+                                "O jogador será incluído na última vaga pendente.",
+                                language,
+                              )}
+                              onClick={() =>
+                                promoteWaitlistedPlayer(game, p.id, updateGame)
+                              }
+                            >
+                              Incluir na lista
+                            </button>
+                          ) : (
+                            <button
+                              className="text-button"
+                              onClick={() =>
+                                addPlayerToGame(game, p.id, updateGame)
+                              }
+                            >
+                              Adicionar
+                            </button>
+                          )}
+                          <button
+                            aria-label={localize("Editar jogador", language)}
+                            className="icon-button subtle-tooltip"
+                            data-tooltip={localize("Editar jogador", language)}
+                            onClick={() => {
+                              setEditPlayer(p.id);
+                              setPlayerFormNotice("");
+                              setIsPlayerFormOpen(true);
+                              setPlayerForm({
+                                name: p.name,
+                                level: p.level,
+                                mobility: p.mobility,
+                                condition: p.condition,
+                                position: p.position,
+                              });
+                            }}
+                          >
+                            ✎
+                          </button>
                           <button
                             aria-label={localize(
-                              "O jogador será incluído na última vaga pendente.",
+                              "Remover jogador da lista",
                               language,
                             )}
-                            className="text-button waitlist-include"
+                            className="icon-button danger subtle-tooltip"
                             data-tooltip={localize(
-                              "O jogador será incluído na última vaga pendente.",
+                              "Remover jogador da lista",
                               language,
                             )}
                             onClick={() =>
-                              promoteWaitlistedPlayer(game, p.id, updateGame)
+                              confirmRemoval(() => removePlayerFromGame(p.id))
                             }
                           >
-                            Incluir na lista
+                            <TrashIcon />
                           </button>
-                        ) : (
-                          <button
-                            className="text-button"
-                            onClick={() =>
-                              addPlayerToGame(game, p.id, updateGame)
-                            }
-                          >
-                            Adicionar
-                          </button>
-                        )}
-                        <button
-                          aria-label={localize("Editar jogador", language)}
-                          className="icon-button subtle-tooltip"
-                          data-tooltip={localize("Editar jogador", language)}
-                          onClick={() => {
-                            setEditPlayer(p.id);
-                            setPlayerFormNotice("");
-                            setIsPlayerFormOpen(true);
-                            setPlayerForm({
-                              name: p.name,
-                              level: p.level,
-                              mobility: p.mobility,
-                              condition: p.condition,
-                              position: p.position,
-                            });
-                          }}
-                        >
-                          ✎
-                        </button>
-                        <button
-                          aria-label={localize(
-                            "Remover jogador da lista",
-                            language,
-                          )}
-                          className="icon-button danger subtle-tooltip"
-                          data-tooltip={localize(
-                            "Remover jogador da lista",
-                            language,
-                          )}
-                          onClick={() =>
-                            confirmRemoval(() => removePlayerFromGame(p.id))
-                          }
-                        >
-                          <TrashIcon />
-                        </button>
+                        </div>
                       </article>
                     );
                   })}
@@ -1472,7 +1516,7 @@ export function PlayUpApp() {
                 </section>
               </aside>
             </div>
-          </>
+          </fieldset>
         )
       )}
       {gameToDelete && (
@@ -1515,6 +1559,7 @@ function PlayerView({
   requestName,
   setRequestName,
   request,
+  requestLeave,
   notice,
   language,
 }: {
@@ -1532,14 +1577,21 @@ function PlayerView({
   requestName: string;
   setRequestName: (x: string) => void;
   request: (e: FormEvent) => boolean;
+  requestLeave: () => boolean;
   notice: string;
   language: "pt" | "en";
 }) {
-  const [activeAction, setActiveAction] = useState<"join" | "request" | null>(
+  const [activeAction, setActiveAction] = useState<
+    "join" | "request" | "leave" | null
+  >(
     null,
   );
   const [isPlayerSearchOpen, setIsPlayerSearchOpen] = useState(false);
   const [isLeaveConfirmationOpen, setIsLeaveConfirmationOpen] = useState(false);
+  const [isGameListOpen, setIsGameListOpen] = useState(false);
+  const [participationConfirmation, setParticipationConfirmation] = useState<
+    "joined" | "requested" | "leave-requested" | null
+  >(null);
   const searchTerm = pick.trim().toLocaleLowerCase();
   const matchingPlayers = isPlayerSearchOpen
     ? players.filter(
@@ -1547,20 +1599,30 @@ function PlayerView({
           !searchTerm || player.name.toLocaleLowerCase().includes(searchTerm),
       )
     : [];
+  const hasExactPlayerSelection = matchingPlayers.some(
+    (player) => player.name.toLocaleLowerCase() === searchTerm,
+  );
+  const enteredPlayerId = entered
+    ? players.find(
+        (player) => player.name.toLocaleLowerCase() === searchTerm,
+      )?.id
+    : null;
   useEffect(() => {
     localizePage(language);
   });
   const closeGame = () => {
     setActiveAction(null);
     setIsPlayerSearchOpen(false);
+    setParticipationConfirmation(null);
+    setIsGameListOpen(false);
     backToGameSelection();
   };
+  const isViewingGame = Boolean(game && isGameListOpen);
   const list = game && (
     <section className="participant-dashboard">
       {game.cancelled && (
         <p className="game-cancelled">{localize("CANCELADO", language)}</p>
       )}
-      <p className="eyebrow">{localize("EVENTO", language)}</p>
       <h1>
         {language === "pt" ? (
           <>
@@ -1572,70 +1634,91 @@ function PlayerView({
           </>
         )}
       </h1>
-      <p className="intro">
-        {label(game)} – {game.endTime} · ({game.duration}
-        {localize("minutos", language)}) · {localize("Quadra", language)}{" "}
-        {game.courtNumber} · {currencySymbol(game.currency)}{" "}
-        {price(game).toFixed(2)} {localize("por pessoa", language)} ·{" "}
-        {game.location || localize("Local não informado", language)}
-        {game.cancelled && <> · ({localize("CANCELADO", language)})</>}
-      </p>
+      <EventSummary className="intro" game={game} language={language} />
       {game.disclaimer && (
         <p className="game-disclaimer">
           <strong>{localize("Aviso", language)}:</strong> {game.disclaimer}
         </p>
       )}
-      <div className="participant-grid">
+      <div className={`participant-grid ${game.teams ? "" : "without-teams"}`}>
         <section className="panel readonly-list">
-          <h2>
-            {localize("Participantes", language)} ({game.playerIds.length}/
-            {game.maxPlayers})
-          </h2>
-          {game.playerIds.map((x, index) => (
-            <div
-              className={`readonly-row ${game.paidPlayerIds.includes(x) ? "is-paid" : ""}`}
-              key={x}
-            >
-              <strong>
-                {index + 1} - {players.find((p) => p.id === x)?.name}
-              </strong>
-              <span
-                aria-label={localize(
-                  game.paidPlayerIds.includes(x) ? "Pago" : "Pendente",
-                  language,
-                )}
-                className={`readonly-payment-mark ${game.paidPlayerIds.includes(x) ? "paid" : "pending"}`}
-              >
-                {game.paidPlayerIds.includes(x) ? "✓" : "×"}
-              </span>
-            </div>
-          ))}
-          <h2 className="wait-title">
-            {localize("Lista de espera", language)}
-          </h2>
-          {game.waitlistIds.map((x, index) => (
-            <p className="wait-row" key={x}>
-              {game.playerIds.length + index + 1} -{" "}
-              {players.find((p) => p.id === x)?.name}
+          {game.playerIds.length === 0 ? (
+            <p className="empty readonly-empty">
+              {localize("A lista está vazia.", language)}
             </p>
-          ))}
-        </section>
-        <section className="participant-teams">
-          {game.teams ? (
-            <Teams teams={game.teams} language={language} />
           ) : (
-            <section className="waiting-teams">
-              <h2>{localize("Times aguardando pagamentos", language)}</h2>
-            </section>
+            <>
+              <h2>
+                {localize("Participantes", language)} ({game.playerIds.length}/
+                {game.maxPlayers})
+              </h2>
+              {game.playerIds.map((x, index) => (
+                <div
+                  className={`readonly-row ${game.paidPlayerIds.includes(x) ? "is-paid" : ""}`}
+                  key={x}
+                >
+                  <span className="readonly-player-name">
+                    <strong>
+                      {index + 1} - {players.find((p) => p.id === x)?.name}
+                    </strong>
+                    {enteredPlayerId === x && (
+                      <button
+                        className="text-button danger self-remove-button"
+                        onClick={() => setIsLeaveConfirmationOpen(true)}
+                        type="button"
+                      >
+                        {localize("Excluir meu nome", language)}
+                      </button>
+                    )}
+                  </span>
+                  <span
+                    aria-label={localize(
+                      game.paidPlayerIds.includes(x) ? "Pago" : "Pendente",
+                      language,
+                    )}
+                    className={`readonly-payment-mark ${game.paidPlayerIds.includes(x) ? "paid" : "pending"}`}
+                  >
+                    {game.paidPlayerIds.includes(x) ? "✓" : "×"}
+                  </span>
+                </div>
+              ))}
+              <section className="waiting-list">
+                <p className="waiting-list-label">
+                  {localize("LISTA DE ESPERA", language)}
+                </p>
+                {game.waitlistIds.map((x, index) => (
+                  <div className="wait-row" key={x}>
+                    <span className="readonly-player-name">
+                      {game.playerIds.length + index + 1} -{" "}
+                      {players.find((p) => p.id === x)?.name}
+                      {enteredPlayerId === x && (
+                        <button
+                          className="text-button danger self-remove-button"
+                          onClick={() => setIsLeaveConfirmationOpen(true)}
+                          type="button"
+                        >
+                          {localize("Excluir meu nome", language)}
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </section>
+            </>
           )}
         </section>
+        {game.teams && (
+          <section className="participant-teams">
+            <Teams teams={game.teams} language={language} />
+          </section>
+        )}
       </div>
     </section>
   );
   return (
     <main className="participant-page">
       <Header onBack={game ? closeGame : exit} onHome={exit} />
-      {!game ? (
+      {!isViewingGame ? (
         <>
           <section className="hero participant-games-heading">
             <h1>
@@ -1653,26 +1736,15 @@ function PlayerView({
                       className={`session-row ${isEnded ? "ended" : ""}`}
                       key={g.id}
                     >
-                      <p className="session-details" title={g.location}>
-                        <strong>{g.date.split("-").reverse().join("/")}</strong>{" "}
-                        (
-                        {weekdayName(
-                          g.date,
-                          language === "pt" ? "pt-BR" : "en-GB",
-                        )}
-                        ) · {g.time} – {g.endTime} ({g.duration}{" "}
-                        {localize("min", language)}) ·{" "}
-                        {g.location ||
-                          localize("Local não informado", language)}
-                        {g.cancelled && (
-                          <> · ({localize("CANCELADO", language)})</>
-                        )}
-                      </p>
+                      <CompactGameDetails game={g} language={language} />
                       <div className="session-row-actions">
                         <button
                           className="session-action-button view"
                           disabled={isEnded}
-                          onClick={() => choose(g.id)}
+                          onClick={() => {
+                            choose(g.id);
+                            setIsGameListOpen(true);
+                          }}
                         >
                           {localize("Ver", language)}
                         </button>
@@ -1697,6 +1769,17 @@ function PlayerView({
                         >
                           {localize("Solicitar participação", language)}
                         </button>
+                        <button
+                          className="session-action-button leave"
+                          disabled={isEnded || g.cancelled}
+                          onClick={() => {
+                            choose(g.id);
+                            setIsPlayerSearchOpen(true);
+                            setActiveAction("leave");
+                          }}
+                        >
+                          {localize("Sair da lista", language)}
+                        </button>
                       </div>
                     </div>
                   );
@@ -1710,17 +1793,7 @@ function PlayerView({
           </section>
         </>
       ) : (
-        <>
-          {list}
-          {entered && (
-            <button
-              className="text-button danger"
-              onClick={() => setIsLeaveConfirmationOpen(true)}
-            >
-              Excluir meu nome
-            </button>
-          )}
-        </>
+        list
       )}
       {activeAction && game && (
         <div className="modal-backdrop" role="presentation">
@@ -1733,16 +1806,28 @@ function PlayerView({
               {localize(
                 activeAction === "join"
                   ? "Confirmar presença"
-                  : "Solicitar participação",
+                  : activeAction === "leave"
+                    ? "Sair da lista"
+                    : "Solicitar participação",
                 language,
               )}
             </p>
-            {activeAction === "join" ? (
+            {activeAction === "join" || activeAction === "leave" ? (
               <form
                 className="participant-modal-form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (join()) setActiveAction(null);
+                  const completed =
+                    activeAction === "join" ? join() : requestLeave();
+                  if (completed) {
+                    setActiveAction(null);
+                    setIsPlayerSearchOpen(false);
+                    setParticipationConfirmation(
+                      activeAction === "join"
+                        ? "joined"
+                        : "leave-requested",
+                    );
+                  }
                 }}
               >
                 <input
@@ -1752,12 +1837,14 @@ function PlayerView({
                   value={pick}
                   onChange={(event) => setPick(event.target.value)}
                 />
-                {matchingPlayers.length > 0 && (
+                {matchingPlayers.length > 0 && !hasExactPlayerSelection && (
                   <div className="player-suggestions" role="listbox">
                     {matchingPlayers.map((player) => {
-                      const isListed =
+                      const isOnGameList =
                         game.playerIds.includes(player.id) ||
                         game.waitlistIds.includes(player.id);
+                      const isListed =
+                        activeAction === "join" ? isOnGameList : !isOnGameList;
                       return (
                         <button
                           className={isListed ? "is-listed" : ""}
@@ -1770,8 +1857,12 @@ function PlayerView({
                           {player.name}
                           {isListed && (
                             <small>
-                              {" "}
-                              — {localize("já está na lista", language)}
+                              {" "}— {localize(
+                                activeAction === "join"
+                                  ? "já está na lista"
+                                  : "não está na lista",
+                                language,
+                              )}
                             </small>
                           )}
                         </button>
@@ -1791,7 +1882,12 @@ function PlayerView({
                     {localize("Cancelar", language)}
                   </button>
                   <button className="primary">
-                    {localize("Confirmar presença", language)}
+                    {localize(
+                      activeAction === "join"
+                        ? "Confirmar presença"
+                        : "Solicitar saída",
+                      language,
+                    )}
                   </button>
                 </div>
               </form>
@@ -1799,7 +1895,10 @@ function PlayerView({
               <form
                 className="participant-modal-form"
                 onSubmit={(event) => {
-                  if (request(event)) setActiveAction(null);
+                  if (request(event)) {
+                    setActiveAction(null);
+                    setParticipationConfirmation("requested");
+                  }
                 }}
               >
                 <input
@@ -1840,6 +1939,61 @@ function PlayerView({
             setIsLeaveConfirmationOpen(false);
           }}
         />
+      )}
+      {participationConfirmation && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-modal="true"
+            className="confirm-dialog participant-action-modal"
+            role="dialog"
+          >
+            <p className="form-mode">
+              {localize(
+                participationConfirmation === "joined"
+                  ? "Participação confirmada."
+                  : participationConfirmation === "leave-requested"
+                    ? "Sair da lista"
+                    : "Solicitar participação",
+                language,
+              )}
+            </p>
+            <p>
+              {localize(
+                participationConfirmation === "joined"
+                  ? "Participação confirmada."
+                  : participationConfirmation === "leave-requested"
+                    ? "Solicitação de saída enviada ao organizador."
+                  : "Seu pedido foi enviado ao organizador.",
+                language,
+              )}
+            </p>
+            <div className="confirm-dialog-actions">
+              {participationConfirmation === "joined" ? (
+                <>
+                  <button className="secondary" onClick={closeGame}>
+                    {localize("Fechar", language)}
+                  </button>
+                  <button
+                    className="primary"
+                    onClick={() => {
+                      setParticipationConfirmation(null);
+                      setIsGameListOpen(true);
+                    }}
+                  >
+                    {localize("Ver lista do jogo", language)}
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="primary"
+                  onClick={closeGame}
+                >
+                  OK
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
       )}
     </main>
   );

@@ -125,7 +125,6 @@ export function GroupSelector({
     <main className="app-shell group-selector-page">
       <Header backLabel={localize("Voltar", language)} onBack={onBack} />
       <section className="hero">
-        <p className="eyebrow">PLAYUP</p>
         <h1>
           {mode === "organizer"
             ? language === "pt" ? <>Seus <em>grupos.</em></> : <>Your <em>groups.</em></>
@@ -138,7 +137,7 @@ export function GroupSelector({
         </p>
       </section>
 
-      {mode === "organizer" && !isCreating && (
+      {mode === "organizer" && (
         <div className="create-game-action">
           <button
             className="secondary"
