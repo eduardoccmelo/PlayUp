@@ -50,13 +50,15 @@ export function GameForm({
         <span>{text("Local")}</span>
         <input required maxLength={20} placeholder={text("Ex.: Clube Central")} value={draft.location} onChange={(event) => onChange({ ...draft, location: event.target.value })} />
       </label>
-      <label className="game-field date-field">
-        <span>{text("Data")}</span>
-        <input required type="date" min={today} value={draft.date} onChange={(event) => onChange({ ...draft, date: event.target.value })} />
-      </label>
-      <div className="game-field weekday-field">
-        <span>{text("Dia da semana")}</span>
-        <output>{weekdayName(draft.date, language === "pt" ? "pt-BR" : "en-GB")}</output>
+      <div className="game-date-row">
+        <label className="game-field date-field">
+          <span>{text("Data")}</span>
+          <input required type="date" min={today} value={draft.date} onChange={(event) => onChange({ ...draft, date: event.target.value })} />
+        </label>
+        <div className="game-field weekday-field">
+          <span>{text("Dia da semana")}</span>
+          <output>{weekdayName(draft.date, language === "pt" ? "pt-BR" : "en-GB")}</output>
+        </div>
       </div>
       <label className="game-field start-field">
         <span>{text("Horário de início")}</span>

@@ -920,6 +920,13 @@ header {
   flex-direction: column;
   gap: 5px;
 }
+.game-date-row {
+  display: grid;
+  grid-column: span 2;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
 .game-field > span:not(.currency-input) {
   color: #526658;
   font-size: 0.75rem;
@@ -1092,6 +1099,8 @@ header {
 .admin-player-search-controls input {
   flex: 1;
   min-width: 0;
+  min-height: var(--action-button-height);
+  height: var(--action-button-height);
 }
 .admin-player-search-controls .primary {
   flex: 0 0 auto;
@@ -1189,10 +1198,6 @@ header {
 }
 .directory-player-results > div:first-child {
   border-top: 0;
-}
-.directory-player-modal {
-  /* Uses the same floating editor layout as the game-details player form. */
-  max-width: none;
 }
 .directory-player-modal .player-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1383,8 +1388,8 @@ header {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: max(20px, env(safe-area-inset-top)) 20px
-    max(20px, env(safe-area-inset-bottom));
+  padding: max(12px, env(safe-area-inset-top)) 12px
+    max(12px, env(safe-area-inset-bottom));
   background: rgb(14 31 22 / 48%);
 }
 .confirm-dialog {
@@ -1396,7 +1401,7 @@ header {
   text-align: center;
 }
 .confirm-dialog.directory-player-modal {
-  width: min(98vw, 640px);
+  padding: 12px;
 }
 .confirm-dialog.game-form-modal {
   width: min(96vw, 640px);
@@ -2014,8 +2019,20 @@ header {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .game-form .date-field input {
+    max-width: 100%;
     padding-inline: 5px;
     font-size: 14px;
+  }
+  .game-date-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .game-date-row .date-field {
+    overflow: hidden;
+  }
+  .game-date-row .date-field input {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    min-inline-size: 0;
   }
   .currency-input .currency-select-full {
     display: none;
@@ -2109,7 +2126,7 @@ header {
   .modal-backdrop {
     align-items: center;
     overflow-y: auto;
-    padding: max(48px, env(safe-area-inset-top)) 16px
+    padding: max(48px, env(safe-area-inset-top)) 12px
       max(56px, env(safe-area-inset-bottom));
   }
   .confirm-dialog.game-form-modal {

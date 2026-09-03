@@ -1314,159 +1314,6 @@ export function PlayUpApp() {
                 </section>
               </section>
               <aside className="side-column">
-                <section
-                  className={`panel player-editor ${!isPlayerFormOpen ? "player-editor-idle" : ""}`}
-                >
-                  {!isPlayerFormOpen ? (
-                    <div className="player-editor-idle-content">
-                      <button
-                        className="primary"
-                        onClick={() => {
-                          setEditPlayer(null);
-                          setPlayerForm(emptyPlayer);
-                          setPlayerFormNotice("");
-                          setIsPlayerFormOpen(true);
-                        }}
-                      >
-                        {localize("+ Adicionar jogador", language)}
-                      </button>
-                      {playerFormNotice && (
-                        <p className="success directory-message">
-                          ✓ {localize(playerFormNotice, language)}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      <p className="form-mode">
-                        {localize(
-                          editPlayer !== null
-                            ? "Editar jogador"
-                            : "Adicionar novo jogador",
-                          language,
-                        )}
-                      </p>
-                      <form className="player-form" onSubmit={savePlayer}>
-                        <input
-                          required
-                          maxLength={20}
-                          placeholder={localize("Nome", language)}
-                          value={playerForm.name}
-                          onChange={(e) =>
-                            setPlayerForm({
-                              ...playerForm,
-                              name: e.target.value,
-                            })
-                          }
-                        />
-                        <select
-                          value={playerForm.level}
-                          onChange={(e) =>
-                            setPlayerForm({
-                              ...playerForm,
-                              level: +e.target.value,
-                            })
-                          }
-                        >
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <option key={n} value={n}>
-                              {localize("Nível", language)} {n}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          value={playerForm.mobility}
-                          onChange={(e) =>
-                            setPlayerForm({
-                              ...playerForm,
-                              mobility: e.target.value as Mobility,
-                            })
-                          }
-                        >
-                          <option value="neutro">
-                            {localize("Velocidade", language)}:{" "}
-                            {localize("Neutra", language)}
-                          </option>
-                          <option value="rapido">
-                            {localize("Velocidade", language)}:{" "}
-                            {localize("Rápido", language)}
-                          </option>
-                          <option value="lento">
-                            {localize("Velocidade", language)}:{" "}
-                            {localize("Lento", language)}
-                          </option>
-                        </select>
-                        <select
-                          value={playerForm.condition}
-                          onChange={(e) =>
-                            setPlayerForm({
-                              ...playerForm,
-                              condition: e.target.value as Condition,
-                            })
-                          }
-                        >
-                          <option value="neutro">
-                            {localize("Condição", language)}:{" "}
-                            {localize("Neutra", language)}
-                          </option>
-                          <option value="boa">
-                            {localize("Condição", language)}:{" "}
-                            {localize("Boa", language)}
-                          </option>
-                          <option value="ruim">
-                            {localize("Condição", language)}:{" "}
-                            {localize("Ruim", language)}
-                          </option>
-                        </select>
-                        <select
-                          value={playerForm.position}
-                          onChange={(e) =>
-                            setPlayerForm({
-                              ...playerForm,
-                              position: e.target.value as Position,
-                            })
-                          }
-                        >
-                          <option value="neutro">
-                            {localize("Posição", language)}:{" "}
-                            {localize("Neutra", language)}
-                          </option>
-                          <option value="goleiro">
-                            {localize("Goleiro", language)}
-                          </option>
-                          <option value="defesa">
-                            {localize("Defesa", language)}
-                          </option>
-                          <option value="ataque">
-                            {localize("Ataque", language)}
-                          </option>
-                        </select>
-                        <button className="primary">
-                          {localize(
-                            editPlayer ? "Salvar" : "Adicionar",
-                            language,
-                          )}
-                        </button>
-                        <button
-                          className="text-button player-form-cancel"
-                          type="button"
-                          onClick={() => {
-                            setEditPlayer(null);
-                            setPlayerForm(emptyPlayer);
-                            setIsPlayerFormOpen(false);
-                          }}
-                        >
-                          {localize("Cancelar", language)}
-                        </button>
-                      </form>
-                    </>
-                  )}
-                  {isPlayerFormOpen && playerFormNotice && (
-                    <p className="success directory-message">
-                      ✓ {localize(playerFormNotice, language)}
-                    </p>
-                  )}
-                </section>
                 <section className="teams-section team-balance-panel">
                   <p className="balance-availability">
                     {localize(
@@ -1518,6 +1365,113 @@ export function PlayUpApp() {
             </div>
           </fieldset>
         )
+      )}
+      {game && isPlayerFormOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-modal="true"
+            className="confirm-dialog directory-player-modal"
+            role="dialog"
+          >
+            <p className="form-mode">
+              {localize(
+                editPlayer !== null ? "Editar jogador" : "Adicionar novo jogador",
+                language,
+              )}
+            </p>
+            <form className="player-form" onSubmit={savePlayer}>
+              <input
+                required
+                maxLength={20}
+                placeholder={localize("Nome", language)}
+                value={playerForm.name}
+                onChange={(event) =>
+                  setPlayerForm({ ...playerForm, name: event.target.value })
+                }
+              />
+              <select
+                value={playerForm.level}
+                onChange={(event) =>
+                  setPlayerForm({ ...playerForm, level: Number(event.target.value) })
+                }
+              >
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <option key={level} value={level}>
+                    {localize("Nível", language)} {level}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={playerForm.mobility}
+                onChange={(event) =>
+                  setPlayerForm({
+                    ...playerForm,
+                    mobility: event.target.value as Mobility,
+                  })
+                }
+              >
+                <option value="neutro">
+                  {localize("Velocidade", language)}: {localize("Neutra", language)}
+                </option>
+                <option value="rapido">
+                  {localize("Velocidade", language)}: {localize("Rápido", language)}
+                </option>
+                <option value="lento">
+                  {localize("Velocidade", language)}: {localize("Lento", language)}
+                </option>
+              </select>
+              <select
+                value={playerForm.condition}
+                onChange={(event) =>
+                  setPlayerForm({
+                    ...playerForm,
+                    condition: event.target.value as Condition,
+                  })
+                }
+              >
+                <option value="neutro">
+                  {localize("Condição", language)}: {localize("Neutra", language)}
+                </option>
+                <option value="boa">
+                  {localize("Condição", language)}: {localize("Boa", language)}
+                </option>
+                <option value="ruim">
+                  {localize("Condição", language)}: {localize("Ruim", language)}
+                </option>
+              </select>
+              <select
+                value={playerForm.position}
+                onChange={(event) =>
+                  setPlayerForm({
+                    ...playerForm,
+                    position: event.target.value as Position,
+                  })
+                }
+              >
+                <option value="neutro">
+                  {localize("Posição", language)}: {localize("Neutra", language)}
+                </option>
+                <option value="goleiro">{localize("Goleiro", language)}</option>
+                <option value="defesa">{localize("Defesa", language)}</option>
+                <option value="ataque">{localize("Ataque", language)}</option>
+              </select>
+              <button className="primary">
+                {localize(editPlayer !== null ? "Salvar" : "Adicionar", language)}
+              </button>
+              <button
+                className="text-button player-form-cancel"
+                type="button"
+                onClick={() => {
+                  setEditPlayer(null);
+                  setPlayerForm(emptyPlayer);
+                  setIsPlayerFormOpen(false);
+                }}
+              >
+                {localize("Cancelar", language)}
+              </button>
+            </form>
+          </section>
+        </div>
       )}
       {gameToDelete && (
         <ConfirmDialog
