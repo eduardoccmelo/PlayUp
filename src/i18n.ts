@@ -45,6 +45,7 @@ export const translations: Record<
     "Escolha o ": "Choose the ",
     Participantes: "Participants",
     Participar: "Join",
+    Solicitar: "Request",
     "Lista de espera": "Waiting list",
     "A lista está vazia.": "The list is empty.",
     "Participação confirmada.": "Attendance confirmed.",

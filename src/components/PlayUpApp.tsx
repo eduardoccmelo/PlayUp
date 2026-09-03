@@ -47,6 +47,9 @@ const emptyPlayer = {
 const noPlayers: Player[] = [];
 const noGames: GameSession[] = [];
 const noRequests: ParticipationRequest[] = [];
+const alphabeticallyByName = (language: "pt" | "en") =>
+  (first: Player, second: Player) =>
+    first.name.localeCompare(second.name, language === "pt" ? "pt-BR" : "en");
 const nextIdentifier = (
   records: {
     id: number;
@@ -206,19 +209,30 @@ export function PlayUpApp() {
         ? game.playerIds
             .map((playerId) => players.find((player) => player.id === playerId))
             .filter((player): player is Player => Boolean(player))
+            .sort(alphabeticallyByName(language))
         : [],
-    [game, players],
+    [game, language, players],
   );
   const paid = game
     ? listed.filter((p) => game.paidPlayerIds.includes(p.id))
     : [];
+  const waiting = useMemo(
+    () =>
+      game
+        ? game.waitlistIds
+            .map((playerId) => players.find((player) => player.id === playerId))
+            .filter((player): player is Player => Boolean(player))
+            .sort(alphabeticallyByName(language))
+        : [],
+    [game, language, players],
+  );
   const adminSearchTerm = adminPlayerSearch.trim().toLocaleLowerCase();
   const playerSearchResults = isAdminPlayerSearchOpen
     ? players.filter(
         (player) =>
           !adminSearchTerm ||
           player.name.toLocaleLowerCase().includes(adminSearchTerm),
-      )
+      ).sort(alphabeticallyByName(language))
     : [];
   const saveGames = (next: GameSession[]) => setGames(next);
   const refreshTeams = useCallback(
@@ -1220,15 +1234,12 @@ export function PlayUpApp() {
                     {localize("LISTA DE ESPERA", language)}
                   </p>
                   {game.waitlistIds.length ? (
-                    game.waitlistIds.map((id, index) => {
-                      const waitingPlayer = players.find(
-                        (player) => player.id === id,
-                      );
+                    waiting.map((waitingPlayer, index) => {
                       return (
-                        <div className="waitlist-player" key={id}>
+                        <div className="waitlist-player" key={waitingPlayer.id}>
                           <strong>
                             {game.playerIds.length + index + 1} -{" "}
-                            {waitingPlayer?.name}
+                            {waitingPlayer.name}
                           </strong>
                           <button
                             aria-label={localize(
@@ -1241,7 +1252,11 @@ export function PlayUpApp() {
                               language,
                             )}
                             onClick={() =>
-                              promoteWaitlistedPlayer(game, id, updateGame)
+                              promoteWaitlistedPlayer(
+                                game,
+                                waitingPlayer.id,
+                                updateGame,
+                              )
                             }
                           >
                             Incluir na lista
@@ -1257,7 +1272,9 @@ export function PlayUpApp() {
                               language,
                             )}
                             onClick={() =>
-                              confirmRemoval(() => removePlayerFromGame(id))
+                              confirmRemoval(() =>
+                                removePlayerFromGame(waitingPlayer.id),
+                              )
                             }
                           >
                             <TrashIcon />
@@ -1551,8 +1568,14 @@ function PlayerView({
     ? players.filter(
         (player) =>
           !searchTerm || player.name.toLocaleLowerCase().includes(searchTerm),
-      )
+      ).sort(alphabeticallyByName(language))
     : [];
+  const sortedPlayerIds = (playerIds: number[]) =>
+    [...playerIds].sort((firstId, secondId) => {
+      const first = players.find((player) => player.id === firstId);
+      const second = players.find((player) => player.id === secondId);
+      return first && second ? alphabeticallyByName(language)(first, second) : 0;
+    });
   const hasExactPlayerSelection = matchingPlayers.some(
     (player) => player.name.toLocaleLowerCase() === searchTerm,
   );
@@ -1606,7 +1629,7 @@ function PlayerView({
                 {localize("Participantes", language)} ({game.playerIds.length}/
                 {game.maxPlayers})
               </h2>
-              {game.playerIds.map((x, index) => (
+              {sortedPlayerIds(game.playerIds).map((x, index) => (
                 <div
                   className={`readonly-row ${game.paidPlayerIds.includes(x) ? "is-paid" : ""}`}
                   key={x}
@@ -1640,7 +1663,7 @@ function PlayerView({
                 <p className="waiting-list-label">
                   {localize("LISTA DE ESPERA", language)}
                 </p>
-                {game.waitlistIds.map((x, index) => (
+                {sortedPlayerIds(game.waitlistIds).map((x, index) => (
                   <div className="wait-row" key={x}>
                     <span className="readonly-player-name">
                       {game.playerIds.length + index + 1} -{" "}
@@ -1721,7 +1744,12 @@ function PlayerView({
                             setActiveAction("request");
                           }}
                         >
-                          {localize("Solicitar participação", language)}
+                          <span className="request-label-full">
+                            {localize("Solicitar participação", language)}
+                          </span>
+                          <span className="request-label-compact">
+                            {localize("Solicitar", language)}
+                          </span>
                         </button>
                         <button
                           className="session-action-button leave"

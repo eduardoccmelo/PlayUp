@@ -15,6 +15,19 @@ export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGame
   const paidPlayers = game.paidPlayerIds.filter((playerId) =>
     game.playerIds.includes(playerId),
   );
+  const playerById = new Map(players.map((player) => [player.id, player]));
+  const sortedPlayersFor = (playerIds: number[]) =>
+    playerIds
+      .map((playerId) => playerById.get(playerId))
+      .filter((player): player is Player => Boolean(player))
+      .sort((first, second) =>
+        first.name.localeCompare(
+          second.name,
+          language === "pt" ? "pt-BR" : "en",
+        ),
+      );
+  const listedPlayers = sortedPlayersFor(game.playerIds);
+  const waitlistedPlayers = sortedPlayersFor(game.waitlistIds);
 
   return (
     <section className="participant-dashboard past-game readonly-game-view">
@@ -56,12 +69,11 @@ export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGame
           ) : (
             <>
               <h2>{localize("Participantes", language)} ({game.playerIds.length}/{game.maxPlayers})</h2>
-              {game.playerIds.map((playerId, index) => {
-                const player = players.find((item) => item.id === playerId);
-                const isPaid = game.paidPlayerIds.includes(playerId);
+              {listedPlayers.map((player, index) => {
+                const isPaid = game.paidPlayerIds.includes(player.id);
                 return (
-                  <div className={`readonly-row ${isPaid ? "is-paid" : ""}`} key={playerId}>
-                    <strong>{index + 1} - {player?.name}</strong>
+                  <div className={`readonly-row ${isPaid ? "is-paid" : ""}`} key={player.id}>
+                    <strong>{index + 1} - {player.name}</strong>
                     <span
                       aria-label={localize(isPaid ? "Pago" : "Pendente", language)}
                       className={`readonly-payment-mark ${isPaid ? "paid" : "pending"}`}
@@ -73,9 +85,9 @@ export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGame
               })}
               <section className="waiting-list">
                 <p className="waiting-list-label">{localize("LISTA DE ESPERA", language)}</p>
-                {game.waitlistIds.map((playerId, index) => (
-                  <p className="wait-row" key={playerId}>
-                    {game.playerIds.length + index + 1} - {players.find((item) => item.id === playerId)?.name}
+                {waitlistedPlayers.map((player, index) => (
+                  <p className="wait-row" key={player.id}>
+                    {game.playerIds.length + index + 1} - {player.name}
                   </p>
                 ))}
               </section>

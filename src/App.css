@@ -4,9 +4,6 @@
 :root {
   --action-button-height: 38px;
 }
-html {
-  scrollbar-gutter: stable;
-}
 body {
   margin: 0;
   background: #fafcf9;
@@ -562,10 +559,20 @@ header {
   background: #277147;
 }
 .game-management-controls {
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  min-inline-size: 0;
   margin: 0;
   padding: 0;
   border: 0;
+  overflow-x: clip;
+}
+.game-management-controls .admin-grid,
+.game-management-controls .roster,
+.game-management-controls .side-column {
+  min-width: 0;
+  max-width: 100%;
 }
 .game-management-controls:disabled {
   opacity: 0.58;
@@ -731,6 +738,9 @@ header {
 }
 .session-action-button.request {
   background: #e66c26;
+}
+.request-label-compact {
+  display: none;
 }
 .session-action-button.leave {
   background: #173c2b;
@@ -1859,7 +1869,7 @@ header {
   .participant-game-list .session-row-actions {
     width: 100%;
     justify-content: flex-end;
-    padding-right: 0;
+    padding: 0 12px;
   }
   .participant-game-list .session-row-actions .session-action-button {
     min-width: 0;
@@ -2007,7 +2017,7 @@ header {
   .session-row-actions {
     width: 100%;
     justify-content: flex-end;
-    padding-right: 0;
+    padding: 0 12px;
   }
   .session-row-actions .session-action-button {
     min-width: 0;
@@ -2134,6 +2144,14 @@ header {
     max-height: calc(100dvh - 104px);
     margin: auto;
     padding: 22px 16px 32px;
+  }
+}
+@media (max-width: 640px) {
+  .request-label-full {
+    display: none;
+  }
+  .request-label-compact {
+    display: inline;
   }
 }
 @media (max-width: 600px) {
