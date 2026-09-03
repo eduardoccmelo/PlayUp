@@ -81,9 +81,9 @@ export function shortLocationName(location: string) {
 
 export function weekdayName(date: string, locale = "pt-BR") {
   if (!date) return "";
-  return new Intl.DateTimeFormat(locale, { weekday: "long" }).format(
-    new Date(`${date}T12:00:00`),
-  );
+  const parsedDate = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(parsedDate.valueOf())) return "";
+  return new Intl.DateTimeFormat(locale, { weekday: "long" }).format(parsedDate);
 }
 
 export function weekdayAbbreviation(date: string, language: "pt" | "en") {

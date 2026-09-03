@@ -32,6 +32,8 @@ export const translations: Record<
     "Horário de término": "End time",
     "Selecione um horário": "Select a time",
     "Selecione...": "Select...",
+    "Informe uma data válida no formato DD/MM/AAAA.":
+      "Enter a valid date in DD/MM/YYYY format.",
     Moeda: "Currency",
     "Informações de pagamento": "Payment details",
     "Ex.: Clube Central": "E.g. Central Club",

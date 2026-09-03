@@ -1,8 +1,7 @@
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { localize, type Language } from "../i18n";
 import {
   availableTimeSlots,
-  today,
   weekdayName,
 } from "../utils/game";
 import type { GameDraft } from "../utils/game";
@@ -17,6 +16,48 @@ type GameFormProps = {
 };
 
 const durationOptions = [45, 60, 75, 90, 105, 120, 135, 150, 165, 180];
+
+function formatDate(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)]
+    .filter(Boolean)
+    .join("/");
+}
+
+function displayDate(date: string) {
+  const [year, month, day] = date.split("-");
+  return year && month && day ? `${day}/${month}/${year}` : "";
+}
+
+function isoDate(value: string) {
+  const [day, month, year] = value.split("/");
+  return day && month && year ? `${year}-${month}-${day}` : "";
+}
+
+function isValidDisplayDate(value: string) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  if (!match) return false;
+
+  const [, day, month, year] = match;
+  const dayNumber = Number(day);
+  const monthNumber = Number(month);
+  const yearNumber = Number(year);
+  if (
+    dayNumber < 1 ||
+    dayNumber > 31 ||
+    monthNumber < 1 ||
+    monthNumber > 12
+  ) {
+    return false;
+  }
+
+  const parsedDate = new Date(`${year}-${month}-${day}T12:00:00`);
+  return (
+    parsedDate.getFullYear() === yearNumber &&
+    parsedDate.getMonth() === monthNumber - 1 &&
+    parsedDate.getDate() === dayNumber
+  );
+}
 
 function durationLabel(duration: number, language: Language) {
   if (duration < 60) return language === "pt" ? `${duration} minutos` : `${duration} minutes`;
@@ -43,6 +84,8 @@ export function GameForm({
   onCancel,
 }: GameFormProps) {
   const text = (value: string) => localize(value, language);
+  const [dateInput, setDateInput] = useState(displayDate(draft.date));
+  const dateHasError = dateInput.length === 10 && !isValidDisplayDate(dateInput);
 
   return (
     <form className="game-form" onSubmit={onSubmit}>
@@ -53,7 +96,25 @@ export function GameForm({
       <div className="game-date-row">
         <label className="game-field date-field">
           <span>{text("Data")}</span>
-          <input required type="date" min={today} value={draft.date} onChange={(event) => onChange({ ...draft, date: event.target.value })} />
+          <input
+            required
+            inputMode="numeric"
+            maxLength={10}
+            pattern="\\d{2}/\\d{2}/\\d{4}"
+            placeholder={language === "pt" ? "DD/MM/AAAA" : "DD/MM/YYYY"}
+            type="text"
+            value={dateInput}
+            aria-invalid={dateHasError}
+            className={dateHasError ? "date-input-invalid" : undefined}
+            onChange={(event) => {
+              const value = formatDate(event.target.value);
+              setDateInput(value);
+              onChange({
+                ...draft,
+                date: isValidDisplayDate(value) ? isoDate(value) : "",
+              });
+            }}
+          />
         </label>
         <div className="game-field weekday-field">
           <span>{text("Dia da semana")}</span>

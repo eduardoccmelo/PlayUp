@@ -50,6 +50,11 @@ const noRequests: ParticipationRequest[] = [];
 const alphabeticallyByName = (language: "pt" | "en") =>
   (first: Player, second: Player) =>
     first.name.localeCompare(second.name, language === "pt" ? "pt-BR" : "en");
+const isValidIsoDate = (date: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const parsedDate = new Date(`${date}T12:00:00`);
+  return !Number.isNaN(parsedDate.valueOf()) && parsedDate.toISOString().slice(0, 10) === date;
+};
 const nextIdentifier = (
   records: {
     id: number;
@@ -323,6 +328,10 @@ export function PlayUpApp() {
       !gameForm.paymentInfo
     ) {
       setNotice("Preencha todos os detalhes do jogo.");
+      return;
+    }
+    if (!isValidIsoDate(gameForm.date)) {
+      setNotice("Informe uma data válida no formato DD/MM/AAAA.");
       return;
     }
     const endTime = endTimeFromDuration(gameForm.time, gameForm.duration);

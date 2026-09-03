@@ -971,6 +971,14 @@ header {
 .weekday-field output {
   min-width: 0;
 }
+.game-form .date-input-invalid {
+  border-color: #b83a2c;
+  box-shadow: 0 0 0 3px rgb(184 58 44 / 14%);
+}
+.game-form .date-input-invalid:focus {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgb(184 58 44 / 24%);
+}
 .submit-game,
 .game-form > .text-button {
   grid-column: span 2;
@@ -2030,13 +2038,12 @@ header {
   }
   .game-form .date-field input {
     max-width: 100%;
-    padding-inline: 5px;
   }
   .game-date-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .game-date-row .date-field {
-    overflow: hidden;
+    overflow: visible;
   }
   .game-date-row .date-field input {
     inline-size: 100%;
@@ -2230,12 +2237,10 @@ header {
   .game-date-row .weekday-field {
     min-width: 0;
   }
-  .game-date-row .date-field input[type="date"] {
+  .game-date-row .date-field input {
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    padding-inline: 3px;
-    font-size: 12px;
   }
   .game-date-row .weekday-field output {
     min-width: 0;
