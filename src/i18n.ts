@@ -51,7 +51,8 @@ export const translations: Record<
     "Lista de espera": "Waiting list",
     "A lista está vazia.": "The list is empty.",
     "Participação confirmada.": "Attendance confirmed.",
-    "Seu pedido foi enviado ao organizador.": "Your request was sent to the organizer.",
+    "Seu pedido foi enviado ao organizador.":
+      "Your request was sent to the organizer.",
     Quadra: "Court",
     "Quadra N/D": "Court N/A",
     "por pessoa": "per person",
@@ -66,7 +67,8 @@ export const translations: Record<
     Jogadores: "Players",
     Adicionar: "Add",
     "Incluir na lista": "Include in list",
-    "O jogador será incluído na última vaga pendente.": "The player will take the last pending spot.",
+    "O jogador será incluído na última vaga pendente.":
+      "The player will take the last pending spot.",
     Pendente: "Pending",
     Pago: "Paid",
     PAGAMENTO: "PAYMENT",
@@ -133,9 +135,11 @@ export const translations: Record<
       "You cannot create a game in the past.",
     "O horário de término deve ser posterior ao início.":
       "End time must be after start time.",
-    "A duração precisa terminar no mesmo dia.": "The duration must end on the same day.",
+    "A duração precisa terminar no mesmo dia.":
+      "The duration must end on the same day.",
     "Esse nome já está na lista.": "This name is already on the list.",
-    "Já existe um grupo com esse nome.": "A group with this name already exists.",
+    "Já existe um grupo com esse nome.":
+      "A group with this name already exists.",
     "Já existe um jogo com esses mesmos dados.":
       "A game with the same details already exists.",
     "Solicitações de participação": "Join requests",
@@ -213,21 +217,31 @@ export const translations: Record<
     "Editando jogador": "Editing player",
     "Jogador adicionado com sucesso.": "Player added successfully.",
     "Jogador atualizado com sucesso.": "Player updated successfully.",
-    "O nome deve ter no máximo 12 caracteres.": "The name can have at most 12 characters.",
-    "O nome deve ter no máximo 20 caracteres.": "The name can have at most 20 characters.",
+    "O nome deve ter no máximo 12 caracteres.":
+      "The name can have at most 12 characters.",
+    "O nome deve ter no máximo 20 caracteres.":
+      "The name can have at most 20 characters.",
     "Seus grupos": "Your groups",
     "Escolha seu grupo": "Choose your group",
-    "Crie ou administre seus grupos de jogos.": "Create or manage your game groups.",
-    "Escolha o grupo para ver os próximos jogos.": "Choose a group to view upcoming games.",
+    "Crie ou administre seus grupos de jogos.":
+      "Create or manage your game groups.",
+    "Escolha o grupo para ver os próximos jogos.":
+      "Choose a group to view upcoming games.",
     "Criar grupo": "Create group",
-    "Você só pode criar até 3 grupos no momento.": "You can create up to 3 groups at the moment.",
+    "Você só pode criar até 3 grupos no momento.":
+      "You can create up to 3 groups at the moment.",
     "Mínimo de jogadores": "Minimum players",
-    "Definir mínimo de jogadores": "Set a minimum number of players",
-    "Cancelar antes do evento": "Cancel before the event",
-    "O horário de cancelamento é anterior ao horário de criação do evento.": "The cancellation time is before the event was created.",
+    "Definir o número mínimo de jogadores necessário":
+      "Set the minimum number of players required",
+    "Cancelamento automático": "Auto cancellation",
+    Desabilitado: "Disabled",
+    "O horário de cancelamento é anterior ao horário de criação do evento.":
+      "The cancellation time is before the event was created.",
     hora: "hour",
     horas: "hours",
-    "Balanceamento disponível para jogadores pagos": "Team balancing is available for paid players",
+    antes: "before",
+    "Balanceamento disponível para jogadores pagos":
+      "Team balancing is available for paid players",
     "Cancelar jogo": "Cancel game",
     "Reativar jogo": "Reactivate game",
     CANCELADO: "CANCELLED",
@@ -248,6 +262,7 @@ export const translations: Record<
     "Entrar como organizador": "Enter as organizer",
     "Digite a senha atual dos organizadores para continuar.":
       "Enter the current organizer passcode to continue.",
+    "Dica de senha: admin": "Password hint: admin",
     "Senha atual": "Current passcode",
     "Mostrar senha": "Show passcode",
     "Ocultar senha": "Hide passcode",
@@ -256,7 +271,8 @@ export const translations: Record<
     "Excluir grupo": "Delete group",
     "Todos os jogos e jogadores deste grupo serão apagados.":
       "All games and players in this group will be deleted.",
-    "Este jogo será excluído permanentemente.": "This game will be permanently deleted.",
+    "Este jogo será excluído permanentemente.":
+      "This game will be permanently deleted.",
     "Gerenciar jogadores": "Manage players",
     Gerenciar: "Manage",
     "jogadores.": "players.",

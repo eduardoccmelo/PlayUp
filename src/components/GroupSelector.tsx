@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { SEED_GROUP_ID } from "../dev/seeds";
 import { localize, type Language } from "../i18n";
 import type { PlayerGroup } from "../types";
 import { normalizeText } from "../utils/game";
@@ -306,6 +307,11 @@ export function GroupSelector({
                   value={currentPasscode}
                   onChange={setCurrentPasscode}
                 />
+                {groupAction.type === "enter" && groupAction.group.id === SEED_GROUP_ID && (
+                  <small className="error">
+                    {localize("Dica de senha: admin", language)}
+                  </small>
+                )}
                 {passcodeError && <small className="error">{localize(passcodeError, language)}</small>}
                 <div className="confirm-dialog-actions">
                   <button className="secondary" type="button" onClick={closeGroupAction}>{localize("Cancelar", language)}</button>

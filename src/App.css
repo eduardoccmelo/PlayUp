@@ -43,7 +43,7 @@ button {
 }
 .landing-page .brand-mark {
   width: min(250px, 58vw);
-  margin-bottom: 26px;
+  margin-bottom: 24px;
 }
 .landing-eyebrow {
   margin: 0 0 14px;
@@ -59,9 +59,9 @@ button {
 }
 .landing-intro {
   max-width: 480px;
-  margin: 0 auto 45px;
+  margin: 0 auto 24px;
   color: #486052;
-  font-size: 17px;
+  font-size: 14px;
   line-height: 1.5;
 }
 .landing-page .access-actions {
@@ -636,7 +636,7 @@ header {
 }
 .minimum-players-control {
   display: grid;
-  gap: 10px;
+  gap: 16px;
   margin-top: 18px;
   padding-top: 16px;
   border-top: 1px solid #e4ece5;
@@ -652,22 +652,37 @@ header {
 }
 .minimum-players-select {
   display: grid;
-  width: fit-content;
+  min-width: 0;
   gap: 6px;
   color: #486052;
   font-size: 13px;
   font-weight: 700;
 }
 .minimum-players-select select {
+  display: block;
+  width: 100%;
+  height: var(--action-button-height);
   min-height: var(--action-button-height);
   padding: 0 10px;
   border: 1px solid #cdd9cf;
   border-radius: 8px;
   background: #fff;
+  color: #244632;
+  font-size: 16px;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+.minimum-players-select select option {
+  font-size: 16px;
+}
+.minimum-players-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .readonly-game-view .game-cancelled {
-  margin: 14px 0 18px;
+  margin: 14px 0;
 }
 .readonly-game-view .event-summary {
   text-align: center;
@@ -1435,7 +1450,7 @@ header {
   color: #173c2b;
 }
 .confirm-dialog p {
-  margin: 10px 0 20px;
+  margin: 10px 0;
   color: #627364;
 }
 .group-auth-modal form {
@@ -1487,6 +1502,7 @@ header {
   display: flex;
   justify-content: center;
   gap: 10px;
+  margin-top: 6px;
 }
 .danger-button {
   min-height: var(--action-button-height);
