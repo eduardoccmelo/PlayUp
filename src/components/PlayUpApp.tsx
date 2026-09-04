@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import {
@@ -167,6 +167,11 @@ export function PlayUpApp() {
     ]);
   }, [groups.length, setGroups]);
   const [gameId, setGameId] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+    const frameId = window.requestAnimationFrame(() => window.scrollTo(0, 0));
+    return () => window.cancelAnimationFrame(frameId);
+  }, [access, activeGroupId, gameId]);
   const game = games.find((g) => g.id === gameId) ?? null;
   const [gameForm, setGameForm] = useState(emptyGame);
   const [editGame, setEditGame] = useState<number | null>(null);
