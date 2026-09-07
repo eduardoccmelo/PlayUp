@@ -39,8 +39,11 @@ export function ParticipationRequests({
   onBack,
   language,
 }: ParticipationRequestsProps) {
-  const joinRequests = requests.filter((request) => request.type !== "leave");
+  const joinRequests = requests.filter(
+    (request) => request.type !== "leave" && request.type !== "payment",
+  );
   const leaveRequests = requests.filter((request) => request.type === "leave");
+  const paymentRequests = requests.filter((request) => request.type === "payment");
   const gameFor = (request: ParticipationRequest) =>
     games.find((game) => game.id === request.gameId);
 
@@ -51,7 +54,7 @@ export function ParticipationRequests({
         <section className="requests-section">
           <div className="requests-section-heading">
             <h1>
-              {localize("Novos", language)} <em>{localize("jogadores.", language)}</em>
+              {localize("Novos", language)} <em>{localize("jogadores", language)}</em>
             </h1>
             <p className="intro">
               {localize("Aprove cada nome para incluí-lo no cadastro geral.", language)}
@@ -76,7 +79,7 @@ export function ParticipationRequests({
         <section className="requests-section">
           <div className="requests-section-heading">
             <h1>
-              {localize("Solicitações de", language)} <em>{localize("saída.", language)}</em>
+              {localize("Solicitações de", language)} <em>{localize("saída", language)}</em>
             </h1>
             <p className="intro">
               {localize("Aprove a saída para remover o jogador da lista do jogo.", language)}
@@ -91,6 +94,35 @@ export function ParticipationRequests({
                 </div>
                 <button className="primary" onClick={() => onApprove(request)}>
                   {localize("Aprovar saída", language)}
+                </button>
+              </article>
+            ))}
+          </section>
+        </section>
+      )}
+      {paymentRequests.length > 0 && (
+        <section className="requests-section">
+          <div className="requests-section-heading">
+            <h1>{localize("Confirmações de", language)} <em>{localize("pagamento", language)}</em></h1>
+            <p className="intro">{localize("Revise os pagamentos informados pelos jogadores.", language)}</p>
+          </div>
+          <section className="panel requests-list">
+            {paymentRequests.map((request) => (
+              <article className="request-card" key={request.id}>
+                <div>
+                  <strong>{request.name}</strong>
+                  <small className="request-payment-status">
+                    {localize(
+                      request.paymentConfirmed
+                        ? "Pagamento confirmado pelo jogador."
+                        : "Pagamento desmarcado pelo jogador.",
+                      language,
+                    )}
+                  </small>
+                  <RequestGameDetails game={gameFor(request)} language={language} />
+                </div>
+                <button className="primary" onClick={() => onApprove(request)}>
+                  {localize("Marcar como lido", language)}
                 </button>
               </article>
             ))}

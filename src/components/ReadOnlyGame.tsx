@@ -19,13 +19,7 @@ export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGame
   const sortedPlayersFor = (playerIds: number[]) =>
     playerIds
       .map((playerId) => playerById.get(playerId))
-      .filter((player): player is Player => Boolean(player))
-      .sort((first, second) =>
-        first.name.localeCompare(
-          second.name,
-          language === "pt" ? "pt-BR" : "en",
-        ),
-      );
+      .filter((player): player is Player => Boolean(player));
   const listedPlayers = sortedPlayersFor(game.playerIds);
   const waitlistedPlayers = sortedPlayersFor(game.waitlistIds);
 
@@ -40,7 +34,7 @@ export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGame
         </div>
       )}
       <h1>
-        {language === "pt" ? <>Lista do <em>jogo.</em></> : <>Game <em>list.</em></>}
+        {language === "pt" ? <>Lista do <em>jogo</em></> : <>Game <em>list</em></>}
       </h1>
       <EventSummary className="game-event-summary" game={game} language={language} />
       {game.disclaimer && <p className="game-disclaimer"><strong>{localize("Aviso", language)}:</strong> {game.disclaimer}</p>}

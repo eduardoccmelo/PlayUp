@@ -4,6 +4,37 @@ export const translations: Record<
   Record<string, string>
 > = {
   en: {
+    Olá: "Hi",
+    "SEU PERFIL": "YOUR PROFILE",
+    "Como devemos chamar você?": "What should we call you?",
+    "Seu nome": "Your name",
+    você: "you",
+    "Crie seu perfil para recuperar seus grupos e jogos em qualquer dispositivo.":
+      "Create your profile to recover your groups and games on any device.",
+    "E-mail": "Email",
+    "Seus jogos, grupos e ferramentas de organização em um só lugar.":
+      "Your games, groups, and organizer tools in one place.",
+    "Gerenciar grupo": "Manage group",
+    "Confirmações de": "Payment",
+    "pagamento.": "confirmations.",
+    "Revise os pagamentos informados pelos jogadores.":
+      "Review the payments reported by players.",
+    "Confirmar pagamento": "Confirm payment",
+    "Marcar como lido": "Mark as read",
+    "Pagamento confirmado pelo jogador.": "Payment confirmed by the player.",
+    "Pagamento desmarcado pelo jogador.": "Payment unchecked by the player.",
+    "Jogo salvo": "Saved game",
+    "Acesse o grupo correspondente para abrir este jogo.":
+      "Open the corresponding group to access this game.",
+    "Enviar código": "Send code",
+    "Enviamos um código de acesso para": "We sent an access code to",
+    "Código de acesso": "Access code",
+    "Demonstração sem backend: use 123456.": "Backend-free demo: use 123456.",
+    "Alterar dados": "Edit details",
+    "Verificar código": "Verify code",
+    "Enviar novo código": "Send a new code",
+    "Código de acesso inválido.": "Invalid access code.",
+    "Informe um e-mail válido.": "Enter a valid email address.",
     "Organize a próxima": "Organize your next",
     "pelada.": "match.",
     "Sou organizador →": "I'm an organizer →",
@@ -14,6 +45,33 @@ export const translations: Record<
     Sair: "Exit",
     JOGOS: "GAMES",
     "Novo jogo": "New game",
+    "Convidar admin": "Invite admin",
+    "Convidar admins": "Invite admins",
+    "Convidar participante": "Invite participant",
+    Compartilhar: "Share",
+    "EDITAR GRUPO": "EDIT GROUP",
+    "Nova senha (opcional)": "New passcode (optional)",
+    "Senha atual (obrigatória para trocar)":
+      "Current passcode (required to change it)",
+    Confirmar: "Confirm",
+    "Copiar código": "Copy code",
+    "Código copiado.": "Code copied.",
+    "Copie este código e envie ao convidado.":
+      "Copy this code and send it to the invitee.",
+    "O jogo já está cheio. Deseja colocar seu nome na lista de espera?":
+      "This game is already full. Do you want to add your name to the waiting list?",
+    "Convidar para este jogo": "Invite to this game",
+    Convidar: "Invite",
+    "CONVITE DE ADMIN": "ADMIN INVITE",
+    "CONVITE PARA O GRUPO": "GROUP INVITE",
+    "CONVITE PARA O JOGO": "GAME INVITE",
+    "Este convite pede a senha do grupo antes de liberar o acesso de admin.":
+      "This invite requires the group password before granting admin access.",
+    "Este convite libera a visualização dos jogos ativos do grupo.":
+      "This invite grants access to view the group's active games.",
+    "Este convite libera apenas este jogo para o convidado.":
+      "This invite grants access only to this game.",
+    "Link e código copiados nesta demonstração.": "Link and code copied in this demo.",
     "Criar jogo": "Create game",
     "Salvar alterações": "Save changes",
     "Editar detalhes do jogo": "Edit game details",
@@ -48,8 +106,10 @@ export const translations: Record<
     "Escolha o": "Choose the",
     Participantes: "Participants",
     Participar: "Join",
+    Participando: "Attending",
     Solicitar: "Request",
     "Lista de espera": "Waiting list",
+    "Na lista de espera": "On waiting list",
     "A lista está vazia.": "The list is empty.",
     "Participação confirmada.": "Attendance confirmed.",
     "Seu pedido foi enviado ao organizador.":
@@ -101,6 +161,10 @@ export const translations: Record<
       "Approve the request to remove the player from the game list.",
     "Solicitação de saída enviada ao organizador.":
       "Removal request sent to the organizer.",
+    "Saída confirmada.": "Removal confirmed.",
+    "Deseja sair da lista deste jogo?": "Do you want to leave this game list?",
+    "Deseja confirmar sua participação neste jogo?":
+      "Do you want to confirm your attendance at this game?",
     "Esse jogador não está na lista deste jogo.":
       "This player is not on this game list.",
     "Já existe uma solicitação de saída para este jogador.":
@@ -111,6 +175,9 @@ export const translations: Record<
     EVENTO: "EVENT",
     "por jogador": "per player",
     jogadores: "players",
+    jogos: "games",
+    saída: "leave",
+    pagamento: "payment",
     pontos: "points",
     "na lista": "on the list",
     "na lista de espera": "on the waiting list",
@@ -127,6 +194,8 @@ export const translations: Record<
     "Solicitação enviada ao organizador.": "Request sent to the organizer.",
     "Esse nome já está cadastrado ou já foi solicitado.":
       "This name is already registered or has already been requested.",
+    "Esse nome já existe. Altere seu nome para continuar.":
+      "This name already exists. Change your name to continue.",
     "Escolha um nome válido da busca.": "Choose a valid name from the search.",
     "Gerencie o seu": "Manage your",
     jogo: "game",
@@ -162,6 +231,19 @@ export const translations: Record<
     "Você está na lista.": "You are on the list.",
     "Você está na lista de espera.": "You are on the waiting list.",
     "Escolha o jogo.": "Choose a game.",
+    Meus: "My",
+    "Meus jogos": "My games",
+    "Jogos aos quais você foi convidado.": "Games you have been invited to.",
+    "Estes são os jogos dos quais você está participando.":
+      "These are the games you are currently attending.",
+    "Tenho um código de jogo": "I have a game code",
+    "Você ainda não tem jogos salvos.": "You do not have any saved games yet.",
+    "Aguardando aprovação": "Waiting for approval",
+    "As ações serão liberadas após a confirmação de um admin.":
+      "Actions will be enabled after an admin confirms.",
+    "ADICIONAR JOGO": "ADD GAME",
+    "Cole o código do jogo para enviar uma solicitação ao admin.":
+      "Paste the game code to send a request to the admin.",
     "Local não informado": "Location not provided",
     Real: "Brazilian real",
     Euro: "Euro",
@@ -231,6 +313,10 @@ export const translations: Record<
     "Escolha o grupo para ver os próximos jogos.":
       "Choose a group to view upcoming games.",
     "Criar grupo": "Create group",
+    "Entrar em um grupo": "Join a group",
+    "ENTRAR EM GRUPO": "JOIN GROUP",
+    "Insira o código do grupo para continuar.": "Enter the group code to continue.",
+    "Acesso liberado nesta demonstração.": "Access is enabled in this demo.",
     "Você só pode criar até 3 grupos no momento.":
       "You can create up to 3 groups at the moment.",
     "Mínimo de jogadores": "Minimum players",
@@ -255,8 +341,12 @@ export const translations: Record<
     "Editar grupo": "Edit group",
     "Senha dos organizadores": "Organizer passcode",
     "Código do grupo": "Group code",
+    "Código do jogo": "Game code",
     Organizar: "Organize",
     "Ver jogos": "View games",
+    "Sair do grupo": "Leave group",
+    "SAIR DO GRUPO": "LEAVE GROUP",
+    "Você deixará de ver os jogos deste grupo.": "You will no longer see this group's games.",
     "Alterar senha": "Change passcode",
     "Nova senha": "New passcode",
     "Nenhum grupo criado.": "No groups created.",

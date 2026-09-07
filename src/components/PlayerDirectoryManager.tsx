@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { localize } from "../i18n";
-import type { Condition, Mobility, Player, Position } from "../types";
+import type { Condition, CurrentUser, Mobility, Player, Position } from "../types";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 type PlayerDirectoryManagerProps = {
   language: "pt" | "en";
   players: Player[];
+  currentUser: CurrentUser | null;
   onAddPlayer: (player: Omit<Player, "id">) => boolean;
   onUpdatePlayer: (player: Player) => boolean;
   onDeletePlayer: (playerId: number) => void;
@@ -22,6 +23,7 @@ const emptyPlayer = {
 export function PlayerDirectoryManager({
   language,
   players,
+  currentUser,
   onAddPlayer,
   onUpdatePlayer,
   onDeletePlayer,
@@ -50,16 +52,24 @@ export function PlayerDirectoryManager({
     );
     closeModal();
   };
-  const sortedPlayers = [...players].sort((first, second) =>
-    first.name.localeCompare(second.name, language === "pt" ? "pt-BR" : "en"),
-  );
+  const ownsPlayer = (player: Player) =>
+    Boolean(
+      currentUser &&
+        (player.ownerUserId === currentUser.id ||
+          player.name.trim().toLocaleLowerCase() ===
+            currentUser.displayName.trim().toLocaleLowerCase()),
+    );
+  const sortedPlayers = [...players].sort((first, second) => {
+    if (ownsPlayer(first) !== ownsPlayer(second)) return ownsPlayer(first) ? -1 : 1;
+    return first.name.localeCompare(second.name, language === "pt" ? "pt-BR" : "en");
+  });
 
   return (
     <section className="directory-manager">
       <div className="directory-manager-heading">
         <h2 className="directory-manager-title">
           {localize("Gerenciar", language)}{" "}
-          <em>{localize("jogadores.", language)}</em>
+          <em>{localize("jogadores", language)}</em>
         </h2>
         <button
           className="session-action-button edit directory-add-button"
@@ -78,9 +88,9 @@ export function PlayerDirectoryManager({
         {players.length ? (
           sortedPlayers.map((player) => (
             <div key={player.id}>
-              <span>{player.name}</span>
+              <span>{player.name}{ownsPlayer(player) && ` (${localize("você", language)})`}</span>
               <button
-                className="text-button"
+                className="session-action-button edit"
                 onClick={() => {
                   setMessage("");
                   setDraft({
@@ -97,7 +107,7 @@ export function PlayerDirectoryManager({
                 {localize("Editar", language)}
               </button>
               <button
-                className="text-button danger"
+                className="session-action-button delete"
                 onClick={() => setPlayerToDelete(player)}
               >
                 {localize("Deletar", language)}
@@ -127,6 +137,7 @@ export function PlayerDirectoryManager({
             </p>
             <form className="player-form" onSubmit={savePlayer}>
               <input
+                className="player-form-name"
                 required
                 maxLength={20}
                 placeholder={localize("Nome", language)}
@@ -136,6 +147,7 @@ export function PlayerDirectoryManager({
                 }
               />
               <select
+                className="player-form-level"
                 value={draft.level}
                 onChange={(event) =>
                   setDraft({ ...draft, level: Number(event.target.value) })
@@ -148,6 +160,25 @@ export function PlayerDirectoryManager({
                 ))}
               </select>
               <select
+                className="player-form-position"
+                value={draft.position}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    position: event.target.value as Position,
+                  })
+                }
+              >
+                <option value="neutro">
+                  {localize("Posição", language)}:{" "}
+                  {localize("Neutra", language)}
+                </option>
+                <option value="goleiro">{localize("Goleiro", language)}</option>
+                <option value="defesa">{localize("Defesa", language)}</option>
+                <option value="ataque">{localize("Ataque", language)}</option>
+              </select>
+              <select
+                className="player-form-mobility"
                 value={draft.mobility}
                 onChange={(event) =>
                   setDraft({
@@ -170,6 +201,7 @@ export function PlayerDirectoryManager({
                 </option>
               </select>
               <select
+                className="player-form-condition"
                 value={draft.condition}
                 onChange={(event) =>
                   setDraft({
@@ -189,28 +221,11 @@ export function PlayerDirectoryManager({
                   {localize("Condição", language)}: {localize("Ruim", language)}
                 </option>
               </select>
-              <select
-                value={draft.position}
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    position: event.target.value as Position,
-                  })
-                }
-              >
-                <option value="neutro">
-                  {localize("Posição", language)}:{" "}
-                  {localize("Neutra", language)}
-                </option>
-                <option value="goleiro">{localize("Goleiro", language)}</option>
-                <option value="defesa">{localize("Defesa", language)}</option>
-                <option value="ataque">{localize("Ataque", language)}</option>
-              </select>
-              <button className="primary">
+              <button className="primary player-form-submit">
                 {localize(mode === "edit" ? "Salvar" : "Adicionar", language)}
               </button>
               <button
-                className="text-button player-form-cancel"
+                className="session-action-button delete player-form-cancel"
                 type="button"
                 onClick={closeModal}
               >

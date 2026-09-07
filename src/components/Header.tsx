@@ -24,6 +24,14 @@ export function Header({
 }: HeaderProps) {
   return (
     <header>
+      <button
+        className={showBackArrow ? "secondary header-back-button" : "exit"}
+        onClick={onBack}
+      >
+        {showBackArrow && <span aria-hidden="true">← </span>}
+        {!showBackArrow && <LogoutIcon />}
+        {backLabel}
+      </button>
       <a
         className="logo"
         href="#"
@@ -35,11 +43,6 @@ export function Header({
       >
         <img src={playUpIcon} alt="" />
       </a>
-      <button className="exit" onClick={onBack}>
-        {showBackArrow && <span aria-hidden="true">← </span>}
-        {!showBackArrow && <LogoutIcon />}
-        {backLabel}
-      </button>
     </header>
   );
 }

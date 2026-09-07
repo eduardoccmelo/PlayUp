@@ -13,6 +13,7 @@ import type {
   ParticipationRequest,
   Player,
   PlayerGroup,
+  CurrentUser,
 } from "../types";
 import { localize, localizePage } from "../i18n";
 import { GameForm } from "./GameForm";
@@ -25,6 +26,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { PlayerDirectoryManager } from "./PlayerDirectoryManager";
 import { GroupSelector } from "./GroupSelector";
 import { CompactGameDetails, EventSummary } from "./EventSummary";
+import { MyGames } from "./MyGames";
 import {
   compareGameStartTime as chronological,
   currencySymbol,
@@ -79,6 +81,13 @@ const createGroupId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID().slice(0, 8)
     : Math.random().toString(36).slice(2, 10);
+const isCurrentUserPlayer = (player: Player | undefined, user: CurrentUser | null) =>
+  Boolean(
+    player &&
+      user &&
+      (player.ownerUserId === user.id ||
+        normalizeText(player.name) === normalizeText(user.displayName)),
+  );
 const TrashIcon = () => (
   <svg aria-hidden="true" className="trash-icon" viewBox="0 0 24 24">
     <path d="M4 7h16M10 11v6M14 11v6M9 7l1-2h4l1 2M6 7l1 13h10l1-13" />
@@ -94,19 +103,20 @@ export function PlayUpApp() {
   useEffect(() => {
     localizePage(language);
   });
-  const [access, setAccess] = useState<"home" | "groups" | "admin" | "player">(
+  const [access, setAccess] = useState<"home" | "groups" | "admin" | "player" | "my-games">(
     "home",
   );
   const [groups, setGroups] = useLocalStorage<PlayerGroup[]>(
     "playup.groups.v1",
     [],
   );
+  const [currentUser, setCurrentUser] = useLocalStorage<CurrentUser | null>(
+    "playup.current-user.v1",
+    null,
+  );
   const [activeGroupId, setActiveGroupId] = useLocalStorage<string | null>(
     "playup.active-group.v1",
     null,
-  );
-  const [groupEntryMode, setGroupEntryMode] = useState<"organizer" | "player">(
-    "organizer",
   );
   const activeGroup =
     groups.find((group) => group.id === activeGroupId) ?? null;
@@ -167,6 +177,41 @@ export function PlayUpApp() {
     ]);
   }, [groups.length, setGroups]);
   const [gameId, setGameId] = useState<number | null>(null);
+  const [returnToDashboardAfterGame, setReturnToDashboardAfterGame] =
+    useState(false);
+  const [guestGameIds, setGuestGameIds] = useState<number[]>([]);
+  const [inviteKind, setInviteKind] = useState<"group-admin" | "group-participant" | "game" | null>(null);
+  const [inviteCodeCopied, setInviteCodeCopied] = useState(false);
+  const currentUserFirst = useCallback(
+    (first: Player, second: Player) => {
+      const firstIsCurrent = isCurrentUserPlayer(first, currentUser);
+      const secondIsCurrent = isCurrentUserPlayer(second, currentUser);
+      if (firstIsCurrent !== secondIsCurrent)
+        return firstIsCurrent ? -1 : 1;
+      return alphabeticallyByName(language)(first, second);
+    },
+    [currentUser, language],
+  );
+  const myGames = useMemo(
+    () =>
+      groups
+        .flatMap((group) =>
+          group.games.filter((gameSession) => {
+            if (guestGameIds.includes(gameSession.id)) return true;
+            const gamePlayerIds = new Set([
+              ...gameSession.playerIds,
+              ...gameSession.waitlistIds,
+            ]);
+            return group.players.some(
+              (player) =>
+                gamePlayerIds.has(player.id) &&
+                isCurrentUserPlayer(player, currentUser),
+            );
+          }),
+        )
+        .sort(chronological),
+    [currentUser, groups, guestGameIds],
+  );
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
     const frameId = window.requestAnimationFrame(() => window.scrollTo(0, 0));
@@ -182,8 +227,8 @@ export function PlayUpApp() {
   const [playerFormNotice, setPlayerFormNotice] = useState("");
   const [adminPlayerSearch, setAdminPlayerSearch] = useState("");
   const [isAdminPlayerSearchOpen, setIsAdminPlayerSearchOpen] = useState(false);
-  const [pick, setPick] = useState("");
-  const [entered, setEntered] = useState(false);
+  const [, setPick] = useState("");
+  const [, setEntered] = useState(false);
   const [notice, setNotice] = useState("");
   const [balanceNotice, setBalanceNotice] = useState("");
   const [cancellationNotice, setCancellationNotice] = useState("");
@@ -226,9 +271,8 @@ export function PlayUpApp() {
         ? game.playerIds
             .map((playerId) => players.find((player) => player.id === playerId))
             .filter((player): player is Player => Boolean(player))
-            .sort(alphabeticallyByName(language))
         : [],
-    [game, language, players],
+    [game, players],
   );
   const paid = game
     ? listed.filter((p) => game.paidPlayerIds.includes(p.id))
@@ -239,9 +283,8 @@ export function PlayUpApp() {
         ? game.waitlistIds
             .map((playerId) => players.find((player) => player.id === playerId))
             .filter((player): player is Player => Boolean(player))
-            .sort(alphabeticallyByName(language))
         : [],
-    [game, language, players],
+    [game, players],
   );
   const adminSearchTerm = adminPlayerSearch.trim().toLocaleLowerCase();
   const playerSearchResults = isAdminPlayerSearchOpen
@@ -251,7 +294,7 @@ export function PlayUpApp() {
             !adminSearchTerm ||
             player.name.toLocaleLowerCase().includes(adminSearchTerm),
         )
-        .sort(alphabeticallyByName(language))
+        .sort(currentUserFirst)
     : [];
   const saveGames = (next: GameSession[]) => setGames(next);
   const refreshTeams = useCallback(
@@ -444,9 +487,33 @@ export function PlayUpApp() {
     const isNewPlayer = editPlayer === null;
     const next = editPlayer
       ? players.map((p) =>
-          p.id === editPlayer ? { ...p, ...playerForm, name } : p,
+          p.id === editPlayer
+            ? {
+                ...p,
+                ...playerForm,
+                name,
+                ownerUserId:
+                  p.ownerUserId ??
+                  (currentUser &&
+                  normalizeText(name) === normalizeText(currentUser.displayName)
+                    ? currentUser.id
+                    : undefined),
+              }
+            : p,
         )
-      : [...players, { id: nextIdentifier(players), ...playerForm, name }];
+      : [
+          ...players,
+          {
+            id: nextIdentifier(players),
+            ...playerForm,
+            name,
+            ownerUserId:
+              currentUser &&
+              normalizeText(name) === normalizeText(currentUser.displayName)
+                ? currentUser.id
+                : undefined,
+          },
+        ];
     setPlayers(next);
     saveGames(
       games.map((g) => {
@@ -507,10 +574,8 @@ export function PlayUpApp() {
     setPick("");
   };
   const join = () => {
-    if (!game || !pick) return false;
-    const player = players.find(
-      (item) => item.name.toLocaleLowerCase() === pick.toLocaleLowerCase(),
-    );
+    if (!game) return false;
+    const player = players.find((item) => isCurrentUserPlayer(item, currentUser));
     if (!player) {
       setNotice("Escolha um nome válido da busca.");
       return false;
@@ -530,23 +595,6 @@ export function PlayUpApp() {
     setEntered(true);
     return true;
   };
-  const leaveGame = () => {
-    if (!game || !pick) return;
-    const player = players.find(
-      (item) => item.name.toLocaleLowerCase() === pick.toLocaleLowerCase(),
-    );
-    if (!player) return;
-    updateGame(
-      fillOpenSpots({
-        ...game,
-        playerIds: game.playerIds.filter((x) => x !== player.id),
-        waitlistIds: game.waitlistIds.filter((x) => x !== player.id),
-        paidPlayerIds: game.paidPlayerIds.filter((x) => x !== player.id),
-      }),
-    );
-    setEntered(false);
-    setPick("");
-  };
   const requestParticipation = (e: FormEvent) => {
     e.preventDefault();
     const name = requestName.trim();
@@ -559,24 +607,57 @@ export function PlayUpApp() {
       players.some((p) => normalizeText(p.name) === normalizeText(name)) ||
       requests.some((r) => normalizeText(r.name) === normalizeText(name))
     ) {
-      setNotice("Esse nome já está cadastrado ou já foi solicitado.");
+      setNotice("Esse nome já existe. Altere seu nome para continuar.");
       return false;
+    }
+    if (
+      currentUser &&
+      normalizeText(name) !== normalizeText(currentUser.displayName)
+    ) {
+      const wouldDuplicateOwnedProfile = groups.some((group) =>
+        group.players.some((player) => player.ownerUserId === currentUser.id) &&
+        group.players.some(
+          (player) =>
+            player.ownerUserId !== currentUser.id &&
+            normalizeText(player.name) === normalizeText(name),
+        ),
+      );
+      if (wouldDuplicateOwnedProfile) {
+        setNotice("Esse nome já existe. Altere seu nome para continuar.");
+        return false;
+      }
+      setGroups((currentGroups) =>
+        currentGroups.map((group) => ({
+          ...group,
+          players: group.players.map((player) =>
+            player.ownerUserId === currentUser.id ? { ...player, name } : player,
+          ),
+        })),
+      );
+      setCurrentUser({ ...currentUser, displayName: name });
     }
     setRequests([
       ...requests,
-      { id: nextIdentifier(requests), name, gameId: game?.id },
+      {
+        id: nextIdentifier(requests),
+        name,
+        requesterUserId: currentUser?.id,
+        gameId: game?.id,
+      },
     ]);
     setRequestName("");
     setNotice("Solicitação enviada ao organizador.");
     return true;
   };
   const requestLeave = () => {
-    if (!game || !pick) return false;
-    const player = players.find(
-      (item) => item.name.toLocaleLowerCase() === pick.toLocaleLowerCase(),
-    );
+    if (!game) return false;
+    const player = players.find((item) => isCurrentUserPlayer(item, currentUser));
     if (!player) {
       setNotice("Escolha um nome válido da busca.");
+      return false;
+    }
+    if (!isCurrentUserPlayer(player, currentUser)) {
+      setNotice("Você só pode sair com o seu próprio nome.");
       return false;
     }
     const isOnGameList =
@@ -586,31 +667,87 @@ export function PlayUpApp() {
       setNotice("Esse jogador não está na lista deste jogo.");
       return false;
     }
-    if (
-      requests.some(
-        (request) =>
-          request.type === "leave" &&
-          request.gameId === game.id &&
-          request.playerId === player.id,
-      )
-    ) {
-      setNotice("Já existe uma solicitação de saída para este jogador.");
-      return false;
-    }
+    updateGame(
+      fillOpenSpots({
+        ...game,
+        playerIds: game.playerIds.filter((id) => id !== player.id),
+        waitlistIds: game.waitlistIds.filter((id) => id !== player.id),
+        paidPlayerIds: game.paidPlayerIds.filter((id) => id !== player.id),
+      }),
+    );
+    setEntered(false);
+    setPick("");
+    return true;
+  };
+  const leaveMyGame = (selectedGame: GameSession) => {
+    setGroups((currentGroups) =>
+      currentGroups.map((group) => {
+        const player = group.players.find((item) =>
+          isCurrentUserPlayer(item, currentUser),
+        );
+        if (!player) return group;
+        return {
+          ...group,
+          games: group.games.map((gameSession) => {
+            if (gameSession !== selectedGame) return gameSession;
+            return refreshTeams(
+              fillOpenSpots({
+                ...gameSession,
+                playerIds: gameSession.playerIds.filter(
+                  (id) => id !== player.id,
+                ),
+                waitlistIds: gameSession.waitlistIds.filter(
+                  (id) => id !== player.id,
+                ),
+                paidPlayerIds: gameSession.paidPlayerIds.filter(
+                  (id) => id !== player.id,
+                ),
+              }),
+              group.players,
+            );
+          }),
+        };
+      }),
+    );
+    setGuestGameIds((current) =>
+      current.filter((gameId) => gameId !== selectedGame.id),
+    );
+  };
+  const confirmPayment = (playerId: number, isPaid: boolean) => {
+    if (!game) return false;
+    const player = players.find((item) => item.id === playerId);
+    if (!player) return false;
+    updateGame({
+      ...game,
+      paidPlayerIds: isPaid
+        ? [...new Set([...game.paidPlayerIds, playerId])]
+        : game.paidPlayerIds.filter((id) => id !== playerId),
+    });
     setRequests([
-      ...requests,
+      ...requests.filter(
+        (request) =>
+          !(
+            request.type === "payment" &&
+            request.gameId === game.id &&
+            request.playerId === playerId
+          ),
+      ),
       {
         id: nextIdentifier(requests),
         name: player.name,
         gameId: game.id,
-        playerId: player.id,
-        type: "leave",
+        playerId,
+        type: "payment",
+        paymentConfirmed: isPaid,
       },
     ]);
-    setNotice("Solicitação de saída enviada ao organizador.");
     return true;
   };
   const approveRequest = (r: ParticipationRequest) => {
+    if (r.type === "payment") {
+      setRequests(requests.filter((request) => request.id !== r.id));
+      return;
+    }
     if (r.type === "leave") {
       const requestedGame = games.find(
         (gameSession) => gameSession.id === r.gameId,
@@ -648,6 +785,7 @@ export function PlayUpApp() {
     const newPlayer = {
       id: nextIdentifier(players),
       name: r.name,
+      ownerUserId: r.requesterUserId,
       level: 3,
       mobility: "neutro" as Mobility,
       condition: "neutro" as Condition,
@@ -688,7 +826,7 @@ export function PlayUpApp() {
       <GroupSelector
         groups={groups}
         language={language}
-        mode={groupEntryMode}
+        adminGroupIds={currentUser?.adminGroupIds ?? (currentUser?.devGodMode ? groups.map((group) => group.id) : [])}
         onBack={() => {
           setActiveGroupId(null);
           setAccess("home");
@@ -704,15 +842,29 @@ export function PlayUpApp() {
             requests: [],
           };
           setGroups([...groups, group]);
+          setCurrentUser((user) =>
+            user
+              ? { ...user, adminGroupIds: [...new Set([...(user.adminGroupIds ?? []), group.id])] }
+              : user,
+          );
           setActiveGroupId(group.id);
-          setAccess("admin");
+          setAccess("player");
         }}
         onChoose={(group) => {
           setActiveGroupId(group.id);
           setGameId(null);
+          setReturnToDashboardAfterGame(false);
+          setInviteKind(null);
           setEntered(false);
           setPick("");
-          setAccess(groupEntryMode === "organizer" ? "admin" : "player");
+          setAccess("player");
+        }}
+        onManage={(group) => {
+          setActiveGroupId(group.id);
+          setGameId(null);
+          setReturnToDashboardAfterGame(false);
+          setInviteKind(null);
+          setAccess("admin");
         }}
         onChangePasscode={(groupId, organizerPasscode) =>
           setGroups(
@@ -728,6 +880,31 @@ export function PlayUpApp() {
             ),
           )
         }
+        myGames={myGames}
+        onOpenMyGame={(selectedGame) => {
+          const group = groups.find((candidate) =>
+            candidate.games.some((gameSession) => gameSession === selectedGame),
+          );
+          if (!group) return;
+          setActiveGroupId(group.id);
+          setGameId(selectedGame.id);
+          setReturnToDashboardAfterGame(true);
+          setInviteKind(null);
+          setEntered(false);
+          setPick("");
+          setAccess("player");
+        }}
+        onLeaveMyGame={leaveMyGame}
+        onAddMyGame={() => {
+          const firstGame = groups
+            .flatMap((group) => group.games)
+            .find((gameSession) => !hasGameEnded(gameSession));
+          if (firstGame) {
+            setGuestGameIds((current) =>
+              current.includes(firstGame.id) ? current : [...current, firstGame.id],
+            );
+          }
+        }}
         onDelete={(groupId) => {
           setGroups(groups.filter((group) => group.id !== groupId));
           if (activeGroupId === groupId) {
@@ -740,17 +917,46 @@ export function PlayUpApp() {
     return (
       <LandingPage
         language={language}
-        onLanguageChange={setLanguage}
-        onChooseOrganizer={() => {
-          setGroupEntryMode("organizer");
-          setActiveGroupId(null);
-          setAccess("groups");
+        user={currentUser}
+        onSaveUser={({ displayName, email }) => {
+          const userId = currentUser?.id ?? createGroupId();
+          const hasDuplicate = groups.some((group) =>
+            group.players.some(
+              (player) =>
+                player.ownerUserId !== userId &&
+                normalizeText(player.name) === normalizeText(displayName),
+            ),
+          );
+          if (hasDuplicate) return "Esse nome já está na lista.";
+          setGroups((currentGroups) =>
+            currentGroups.map((group) => ({
+              ...group,
+              players: group.players.map((player) =>
+                player.ownerUserId === userId
+                  ? { ...player, name: displayName }
+                  : player,
+              ),
+            })),
+          );
+          setCurrentUser((user) =>
+            user
+              ? { ...user, displayName, email, emailVerified: true }
+              : {
+                  id: userId,
+                  displayName,
+                  email,
+                  emailVerified: true,
+                  devGodMode: true,
+                  createdAt: new Date().toISOString(),
+                },
+          );
+          return null;
         }}
-        onChoosePlayer={() => {
+        onLanguageChange={setLanguage}
+        onEnter={() => {
           setGameId(null);
           setEntered(false);
           setPick("");
-          setGroupEntryMode("player");
           setActiveGroupId(null);
           setAccess("groups");
         }}
@@ -771,13 +977,28 @@ export function PlayUpApp() {
           setGameId(null);
           setEntered(false);
           setPick("");
+          if (returnToDashboardAfterGame) {
+            setReturnToDashboardAfterGame(false);
+            setAccess("groups");
+          }
+        }}
+        backToGroups={() => {
+          setGameId(null);
+          setEntered(false);
+          setPick("");
+          setAccess("groups");
         }}
         players={players}
-        pick={pick}
-        setPick={setPick}
-        entered={entered}
+        user={currentUser}
+        isGroupMember={players.some((player) =>
+          isCurrentUserPlayer(player, currentUser),
+        ) || (currentUser?.adminGroupIds ?? (currentUser?.devGodMode ? [activeGroupId] : [])).includes(activeGroupId ?? "")}
+        onManageGroup={
+          (currentUser?.adminGroupIds ?? (currentUser?.devGodMode ? [activeGroupId] : [])).includes(activeGroupId ?? "")
+            ? () => setAccess("admin")
+            : undefined
+        }
         join={join}
-        leave={leaveGame}
         exit={() => {
           setAccess("home");
           setEntered(false);
@@ -789,10 +1010,24 @@ export function PlayUpApp() {
         setRequestName={setRequestName}
         request={requestParticipation}
         requestLeave={requestLeave}
+        confirmPayment={confirmPayment}
         notice={notice}
         language={language}
       />
     );
+  if (access === "my-games") {
+    return (
+      <MyGames
+        games={myGames}
+        language={language}
+        onBack={() => setAccess("groups")}
+        onRequestGame={() => {
+          const firstGame = groups.flatMap((group) => group.games).find((gameSession) => !hasGameEnded(gameSession));
+          if (firstGame) setGuestGameIds((current) => current.includes(firstGame.id) ? current : [...current, firstGame.id]);
+        }}
+      />
+    );
+  }
   if (access === "admin" && requests.length)
     return (
       <ParticipationRequests
@@ -800,7 +1035,10 @@ export function PlayUpApp() {
         language={language}
         requests={requests}
         onApprove={approveRequest}
-        onBack={() => setAccess("home")}
+        onBack={() => {
+          setActiveGroupId(null);
+          setAccess("groups");
+        }}
       />
     );
 
@@ -826,8 +1064,8 @@ export function PlayUpApp() {
   return (
     <main className="app-shell">
       <Header
-        backLabel={localize(game ? "Voltar" : "Sair", language)}
-        showBackArrow={Boolean(game)}
+        backLabel={localize("Voltar", language)}
+        showBackArrow
         onBack={() => {
           if (game) {
             setGameId(null);
@@ -840,7 +1078,6 @@ export function PlayUpApp() {
           setEditGame(null);
           setGameForm(emptyGame);
           setIsGameCreationOpen(false);
-          setGroupEntryMode("organizer");
           setActiveGroupId(null);
           setAccess("groups");
         }}
@@ -864,11 +1101,20 @@ export function PlayUpApp() {
           <div>
             <h1>
               {localize("Gerencie o", language)}{" "}
-              <em>{localize("jogo.", language)}</em>
+              <em>{localize("jogo", language)}</em>
             </h1>
             <EventSummary game={game} language={language} />
           </div>
           <div className="hero-game-actions">
+            <button
+              className="secondary hero-game-action"
+              onClick={() => {
+                setInviteCodeCopied(false);
+                setInviteKind("game");
+              }}
+            >
+              {localize("Convidar para este jogo", language)}
+            </button>
             <button
               className={`hero-game-action session-action-button ${game.cancelled ? "reactivate-game" : "delete"}`}
               onClick={() =>
@@ -893,18 +1139,20 @@ export function PlayUpApp() {
         <section className="game-directory-heading">
           <h1>
             {localize("Gerenciar", language)}{" "}
-            <em>{localize("jogos.", language)}</em>
+            <em>{localize("jogos", language)}</em>
           </h1>
-          <button
-            className="session-action-button edit new-game-button"
-            onClick={() => {
-              setEditGame(null);
-              setGameForm(emptyGame);
-              setIsGameCreationOpen(true);
-            }}
-          >
-            + {localize("Novo jogo", language)}
-          </button>
+          <div className="game-directory-actions">
+            <button
+              className="session-action-button edit new-game-button"
+              onClick={() => {
+                setEditGame(null);
+                setGameForm(emptyGame);
+                setIsGameCreationOpen(true);
+              }}
+            >
+              + {localize("Novo jogo", language)}
+            </button>
+          </div>
         </section>
       ) : null}
       {!game && (
@@ -988,6 +1236,7 @@ export function PlayUpApp() {
         <PlayerDirectoryManager
           language={language}
           players={players}
+          currentUser={currentUser}
           onAddPlayer={(player) => {
             if (
               players.some(
@@ -1001,7 +1250,16 @@ export function PlayUpApp() {
             }
             setPlayers([
               ...players,
-              { id: nextIdentifier(players), ...player },
+              {
+                id: nextIdentifier(players),
+                ...player,
+                ownerUserId:
+                  currentUser &&
+                  normalizeText(player.name) ===
+                    normalizeText(currentUser.displayName)
+                    ? currentUser.id
+                    : player.ownerUserId,
+              },
             ]);
             return true;
           }}
@@ -1018,7 +1276,18 @@ export function PlayUpApp() {
               return false;
             }
             const nextPlayers = players.map((player) =>
-              player.id === updatedPlayer.id ? updatedPlayer : player,
+              player.id === updatedPlayer.id
+                ? {
+                    ...updatedPlayer,
+                    ownerUserId:
+                      player.ownerUserId ??
+                      (currentUser &&
+                      normalizeText(updatedPlayer.name) ===
+                        normalizeText(currentUser.displayName)
+                        ? currentUser.id
+                        : undefined),
+                  }
+                : player,
             );
             setPlayers(nextPlayers);
             saveGames(
@@ -1108,7 +1377,11 @@ export function PlayUpApp() {
 
                         return (
                           <div key={player.id}>
-                            <span>{player.name}</span>
+                            <span>
+                              {player.name}
+                              {isCurrentUserPlayer(player, currentUser) &&
+                                ` (${localize("você", language)})`}
+                            </span>
                             {isListed ? (
                               <small>{localize("na lista", language)}</small>
                             ) : isWaiting ? (
@@ -1486,6 +1759,7 @@ export function PlayUpApp() {
             </p>
             <form className="player-form" onSubmit={savePlayer}>
               <input
+                className="player-form-name"
                 required
                 maxLength={20}
                 placeholder={localize("Nome", language)}
@@ -1495,6 +1769,7 @@ export function PlayUpApp() {
                 }
               />
               <select
+                className="player-form-level"
                 value={playerForm.level}
                 onChange={(event) =>
                   setPlayerForm({
@@ -1510,6 +1785,25 @@ export function PlayUpApp() {
                 ))}
               </select>
               <select
+                className="player-form-position"
+                value={playerForm.position}
+                onChange={(event) =>
+                  setPlayerForm({
+                    ...playerForm,
+                    position: event.target.value as Position,
+                  })
+                }
+              >
+                <option value="neutro">
+                  {localize("Posição", language)}:{" "}
+                  {localize("Neutra", language)}
+                </option>
+                <option value="goleiro">{localize("Goleiro", language)}</option>
+                <option value="defesa">{localize("Defesa", language)}</option>
+                <option value="ataque">{localize("Ataque", language)}</option>
+              </select>
+              <select
+                className="player-form-mobility"
                 value={playerForm.mobility}
                 onChange={(event) =>
                   setPlayerForm({
@@ -1532,6 +1826,7 @@ export function PlayUpApp() {
                 </option>
               </select>
               <select
+                className="player-form-condition"
                 value={playerForm.condition}
                 onChange={(event) =>
                   setPlayerForm({
@@ -1551,31 +1846,14 @@ export function PlayUpApp() {
                   {localize("Condição", language)}: {localize("Ruim", language)}
                 </option>
               </select>
-              <select
-                value={playerForm.position}
-                onChange={(event) =>
-                  setPlayerForm({
-                    ...playerForm,
-                    position: event.target.value as Position,
-                  })
-                }
-              >
-                <option value="neutro">
-                  {localize("Posição", language)}:{" "}
-                  {localize("Neutra", language)}
-                </option>
-                <option value="goleiro">{localize("Goleiro", language)}</option>
-                <option value="defesa">{localize("Defesa", language)}</option>
-                <option value="ataque">{localize("Ataque", language)}</option>
-              </select>
-              <button className="primary">
+              <button className="primary player-form-submit">
                 {localize(
                   editPlayer !== null ? "Salvar" : "Adicionar",
                   language,
                 )}
               </button>
               <button
-                className="text-button player-form-cancel"
+                className="session-action-button delete player-form-cancel"
                 type="button"
                 onClick={() => {
                   setEditPlayer(null);
@@ -1611,6 +1889,73 @@ export function PlayUpApp() {
           }}
         />
       )}
+      {inviteKind && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-modal="true"
+            className="confirm-dialog group-auth-modal invite-modal"
+            role="dialog"
+          >
+            <p className="form-mode">
+              {localize(
+                inviteKind === "group-admin"
+                  ? "CONVITE DE ADMIN"
+                  : inviteKind === "group-participant"
+                    ? "CONVITE PARA O GRUPO"
+                    : "CONVITE PARA O JOGO",
+                language,
+              )}
+            </p>
+            <p>
+              {localize(
+                inviteKind === "group-admin"
+                  ? "Este convite pede a senha do grupo antes de liberar o acesso de admin."
+                  : inviteKind === "group-participant"
+                    ? "Este convite libera a visualização dos jogos ativos do grupo."
+                    : "Este convite libera apenas este jogo para o convidado.",
+                language,
+              )}
+            </p>
+            <input readOnly value={inviteKind === "game" ? `PLAYUP-GAME-${game?.id ?? "DEMO"}` : `PLAYUP-GROUP-${activeGroup?.id ?? "DEMO"}`} />
+            <small className="success">
+              {localize(
+                inviteCodeCopied
+                  ? "Código copiado."
+                  : "Copie este código e envie ao convidado.",
+                language,
+              )}
+            </small>
+            <div className="confirm-dialog-actions">
+              <button
+                className="session-action-button delete"
+                onClick={() => {
+                  setInviteCodeCopied(false);
+                  setInviteKind(null);
+                }}
+              >
+                {localize("Fechar", language)}
+              </button>
+              <button
+                className="primary"
+                onClick={async () => {
+                  const code =
+                    inviteKind === "game"
+                      ? `PLAYUP-GAME-${game?.id ?? "DEMO"}`
+                      : `PLAYUP-GROUP-${activeGroup?.id ?? "DEMO"}`;
+                  try {
+                    await navigator.clipboard.writeText(code);
+                    setInviteCodeCopied(true);
+                  } catch {
+                    setInviteCodeCopied(false);
+                  }
+                }}
+              >
+                {localize("Copiar código", language)}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
@@ -1619,17 +1964,18 @@ function PlayerView({
   game,
   choose,
   backToGameSelection,
+  backToGroups,
   players,
-  pick,
-  setPick,
-  entered,
+  user,
+  isGroupMember,
+  onManageGroup,
   join,
-  leave,
   exit,
   requestName,
   setRequestName,
   request,
   requestLeave,
+  confirmPayment,
   notice,
   language,
 }: {
@@ -1637,59 +1983,34 @@ function PlayerView({
   game: GameSession | null;
   choose: (x: number) => void;
   backToGameSelection: () => void;
+  backToGroups: () => void;
   players: Player[];
-  pick: string;
-  setPick: (x: string) => void;
-  entered: boolean;
+  user: CurrentUser | null;
+  isGroupMember: boolean;
+  onManageGroup?: () => void;
   join: () => boolean;
-  leave: () => void;
   exit: () => void;
   requestName: string;
   setRequestName: (x: string) => void;
   request: (e: FormEvent) => boolean;
   requestLeave: () => boolean;
+  confirmPayment: (playerId: number, isPaid: boolean) => boolean;
   notice: string;
   language: "pt" | "en";
 }) {
   const [activeAction, setActiveAction] = useState<
     "join" | "request" | "leave" | null
   >(null);
-  const [isPlayerSearchOpen, setIsPlayerSearchOpen] = useState(false);
-  const [isLeaveConfirmationOpen, setIsLeaveConfirmationOpen] = useState(false);
-  const [isGameListOpen, setIsGameListOpen] = useState(false);
+  const [isGameListOpen, setIsGameListOpen] = useState(Boolean(game));
   const [participationConfirmation, setParticipationConfirmation] = useState<
-    "joined" | "requested" | "leave-requested" | null
+    "requested" | null
   >(null);
-  const searchTerm = pick.trim().toLocaleLowerCase();
-  const matchingPlayers = isPlayerSearchOpen
-    ? players
-        .filter(
-          (player) =>
-            !searchTerm || player.name.toLocaleLowerCase().includes(searchTerm),
-        )
-        .sort(alphabeticallyByName(language))
-    : [];
-  const sortedPlayerIds = (playerIds: number[]) =>
-    [...playerIds].sort((firstId, secondId) => {
-      const first = players.find((player) => player.id === firstId);
-      const second = players.find((player) => player.id === secondId);
-      return first && second
-        ? alphabeticallyByName(language)(first, second)
-        : 0;
-    });
-  const hasExactPlayerSelection = matchingPlayers.some(
-    (player) => player.name.toLocaleLowerCase() === searchTerm,
-  );
-  const enteredPlayerId = entered
-    ? players.find((player) => player.name.toLocaleLowerCase() === searchTerm)
-        ?.id
-    : null;
+  const sortedPlayerIds = (playerIds: number[]) => playerIds;
   useEffect(() => {
     localizePage(language);
   });
   const closeGame = () => {
     setActiveAction(null);
-    setIsPlayerSearchOpen(false);
     setParticipationConfirmation(null);
     setIsGameListOpen(false);
     backToGameSelection();
@@ -1703,11 +2024,11 @@ function PlayerView({
       <h1>
         {language === "pt" ? (
           <>
-            Lista do <em>jogo.</em>
+            Lista do <em>jogo</em>
           </>
         ) : (
           <>
-            Game <em>list.</em>
+            Game <em>list</em>
           </>
         )}
       </h1>
@@ -1737,25 +2058,27 @@ function PlayerView({
                   <span className="readonly-player-name">
                     <strong>
                       {index + 1} - {players.find((p) => p.id === x)?.name}
+                      {isCurrentUserPlayer(players.find((p) => p.id === x)!, user) &&
+                        ` (${localize("você", language)})`}
                     </strong>
-                    {enteredPlayerId === x && (
-                      <button
-                        className="text-button danger self-remove-button"
-                        onClick={() => setIsLeaveConfirmationOpen(true)}
-                        type="button"
-                      >
-                        {localize("Excluir meu nome", language)}
-                      </button>
-                    )}
                   </span>
-                  <span
-                    aria-label={localize(
-                      game.paidPlayerIds.includes(x) ? "Pago" : "Pendente",
-                      language,
+                  <span className="readonly-payment-actions">
+                    {isCurrentUserPlayer(players.find((p) => p.id === x), user) && (
+                      <label className="readonly-payment-confirmation">
+                        <input
+                          checked={game.paidPlayerIds.includes(x)}
+                          onChange={(event) => confirmPayment(x, event.target.checked)}
+                          type="checkbox"
+                        />
+                        <span>{localize("Pago", language)}</span>
+                      </label>
                     )}
-                    className={`readonly-payment-mark ${game.paidPlayerIds.includes(x) ? "paid" : "pending"}`}
-                  >
-                    {game.paidPlayerIds.includes(x) ? "✓" : "×"}
+                    <span
+                      aria-label={localize(game.paidPlayerIds.includes(x) ? "Pago" : "Pendente", language)}
+                      className={`readonly-payment-mark ${game.paidPlayerIds.includes(x) ? "paid" : "pending"}`}
+                    >
+                      {game.paidPlayerIds.includes(x) ? "✓" : "×"}
+                    </span>
                   </span>
                 </div>
               ))}
@@ -1768,15 +2091,8 @@ function PlayerView({
                     <span className="readonly-player-name">
                       {game.playerIds.length + index + 1} -{" "}
                       {players.find((p) => p.id === x)?.name}
-                      {enteredPlayerId === x && (
-                        <button
-                          className="text-button danger self-remove-button"
-                          onClick={() => setIsLeaveConfirmationOpen(true)}
-                          type="button"
-                        >
-                          {localize("Excluir meu nome", language)}
-                        </button>
-                      )}
+                      {isCurrentUserPlayer(players.find((p) => p.id === x)!, user) &&
+                        ` (${localize("você", language)})`}
                     </span>
                   </div>
                 ))}
@@ -1794,26 +2110,47 @@ function PlayerView({
   );
   return (
     <main className="participant-page">
-      <Header onBack={game ? closeGame : exit} onHome={exit} />
+      <Header
+        backLabel={localize("Voltar", language)}
+        onBack={game ? closeGame : backToGroups}
+        onHome={exit}
+      />
       {!isViewingGame ? (
         <>
-          <section className="hero participant-games-heading">
+          <section className="game-directory-heading participant-games-heading">
             <h1>
               {localize("Escolha o", language)}{" "}
-              <em>{localize("jogo.", language)}</em>
+              <em>{localize("jogo", language)}</em>
             </h1>
+            {onManageGroup && (
+              <button className="secondary" onClick={onManageGroup}>
+                {localize("Gerenciar grupo", language)}
+              </button>
+            )}
           </section>
           <section className="panel participant-games-panel">
             {games.length ? (
               <div className="session-tabs participant-game-list">
                 {games.map((g) => {
                   const isEnded = hasGameEnded(g);
+                  const isCurrentUserAttending = g.playerIds.some((playerId) =>
+                    isCurrentUserPlayer(
+                      players.find((player) => player.id === playerId),
+                      user,
+                    ),
+                  );
+                  const isCurrentUserWaiting = g.waitlistIds.some((playerId) =>
+                    isCurrentUserPlayer(
+                      players.find((player) => player.id === playerId),
+                      user,
+                    ),
+                  );
                   return (
                     <div
                       className={`session-row ${isEnded ? "ended" : ""}`}
                       key={g.id}
                     >
-                      <CompactGameDetails game={g} language={language} />
+                      <CompactGameDetails game={g} language={language} waiting={isCurrentUserWaiting} />
                       <div className="session-row-actions">
                         <button
                           className="session-action-button view"
@@ -1827,36 +2164,44 @@ function PlayerView({
                         </button>
                         <button
                           className="session-action-button confirm"
-                          disabled={isEnded || g.cancelled}
+                          disabled={isEnded || g.cancelled || isCurrentUserAttending || isCurrentUserWaiting}
                           onClick={() => {
                             choose(g.id);
-                            setIsPlayerSearchOpen(true);
                             setActiveAction("join");
                           }}
                         >
-                          {localize("Participar", language)}
+                          {localize(
+                            isCurrentUserAttending
+                              ? "Participando"
+                              : isCurrentUserWaiting
+                                ? "Na lista de espera"
+                                : "Participar",
+                            language,
+                          )}
                         </button>
-                        <button
-                          className="session-action-button request"
-                          disabled={isEnded || g.cancelled}
-                          onClick={() => {
-                            choose(g.id);
-                            setActiveAction("request");
-                          }}
-                        >
-                          <span className="request-label-full">
-                            {localize("Solicitar participação", language)}
-                          </span>
-                          <span className="request-label-compact">
-                            {localize("Solicitar", language)}
-                          </span>
-                        </button>
+                        {!isGroupMember && (
+                          <button
+                            className="session-action-button request"
+                            disabled={isEnded || g.cancelled}
+                            onClick={() => {
+                              choose(g.id);
+                              setRequestName(user?.displayName ?? "");
+                              setActiveAction("request");
+                            }}
+                          >
+                            <span className="request-label-full">
+                              {localize("Solicitar participação", language)}
+                            </span>
+                            <span className="request-label-compact">
+                              {localize("Solicitar", language)}
+                            </span>
+                          </button>
+                        )}
                         <button
                           className="session-action-button leave"
-                          disabled={isEnded || g.cancelled}
+                          disabled={isEnded || g.cancelled || (!isCurrentUserAttending && !isCurrentUserWaiting)}
                           onClick={() => {
                             choose(g.id);
-                            setIsPlayerSearchOpen(true);
                             setActiveAction("leave");
                           }}
                         >
@@ -1903,55 +2248,19 @@ function PlayerView({
                     activeAction === "join" ? join() : requestLeave();
                   if (completed) {
                     setActiveAction(null);
-                    setIsPlayerSearchOpen(false);
-                    setParticipationConfirmation(
-                      activeAction === "join" ? "joined" : "leave-requested",
-                    );
                   }
                 }}
               >
-                <input
-                  autoComplete="off"
-                  autoFocus
-                  placeholder={localize("Busque seu nome", language)}
-                  value={pick}
-                  onChange={(event) => setPick(event.target.value)}
-                />
-                {matchingPlayers.length > 0 && !hasExactPlayerSelection && (
-                  <div className="player-suggestions" role="listbox">
-                    {matchingPlayers.map((player) => {
-                      const isOnGameList =
-                        game.playerIds.includes(player.id) ||
-                        game.waitlistIds.includes(player.id);
-                      const isListed =
-                        activeAction === "join" ? isOnGameList : !isOnGameList;
-                      return (
-                        <button
-                          className={isListed ? "is-listed" : ""}
-                          disabled={isListed}
-                          key={player.id}
-                          onClick={() => setPick(player.name)}
-                          onMouseDown={(event) => event.preventDefault()}
-                          type="button"
-                        >
-                          {player.name}
-                          {isListed && (
-                            <small>
-                              {" "}
-                              —{" "}
-                              {localize(
-                                activeAction === "join"
-                                  ? "já está na lista"
-                                  : "não está na lista",
-                                language,
-                              )}
-                            </small>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                <p>
+                  {localize(
+                    activeAction === "join"
+                      ? game.playerIds.length >= game.maxPlayers
+                        ? "O jogo já está cheio. Deseja colocar seu nome na lista de espera?"
+                        : "Deseja confirmar sua participação neste jogo?"
+                      : "Deseja sair da lista deste jogo?",
+                    language,
+                  )}
+                </p>
                 {notice && (
                   <p className="success">✓ {localize(notice, language)}</p>
                 )}
@@ -1965,9 +2274,7 @@ function PlayerView({
                   </button>
                   <button className="primary">
                     {localize(
-                      activeAction === "join"
-                        ? "Confirmar presença"
-                        : "Solicitar saída",
+                      activeAction === "join" ? "Confirmar" : "Sair da lista",
                       language,
                     )}
                   </button>
@@ -2011,17 +2318,6 @@ function PlayerView({
           </section>
         </div>
       )}
-      {isLeaveConfirmationOpen && (
-        <ConfirmDialog
-          kind="remove"
-          language={language}
-          onCancel={() => setIsLeaveConfirmationOpen(false)}
-          onConfirm={() => {
-            leave();
-            setIsLeaveConfirmationOpen(false);
-          }}
-        />
-      )}
       {participationConfirmation && (
         <div className="modal-backdrop" role="presentation">
           <section
@@ -2030,46 +2326,15 @@ function PlayerView({
             role="dialog"
           >
             <p className="form-mode">
-              {localize(
-                participationConfirmation === "joined"
-                  ? "Participação confirmada."
-                  : participationConfirmation === "leave-requested"
-                    ? "Sair da lista"
-                    : "Solicitar participação",
-                language,
-              )}
+              {localize("Solicitar participação", language)}
             </p>
             <p>
-              {localize(
-                participationConfirmation === "joined"
-                  ? "Participação confirmada."
-                  : participationConfirmation === "leave-requested"
-                    ? "Solicitação de saída enviada ao organizador."
-                    : "Seu pedido foi enviado ao organizador.",
-                language,
-              )}
+              {localize("Seu pedido foi enviado ao organizador.", language)}
             </p>
             <div className="confirm-dialog-actions">
-              {participationConfirmation === "joined" ? (
-                <>
-                  <button className="secondary" onClick={closeGame}>
-                    {localize("Fechar", language)}
-                  </button>
-                  <button
-                    className="primary"
-                    onClick={() => {
-                      setParticipationConfirmation(null);
-                      setIsGameListOpen(true);
-                    }}
-                  >
-                    {localize("Ver lista do jogo", language)}
-                  </button>
-                </>
-              ) : (
-                <button className="primary" onClick={closeGame}>
-                  OK
-                </button>
-              )}
+              <button className="primary" onClick={closeGame}>
+                OK
+              </button>
             </div>
           </section>
         </div>

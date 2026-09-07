@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { localize, type Language } from "../i18n";
 import {
   availableTimeSlots,
+  today,
   weekdayName,
 } from "../utils/game";
 import type { GameDraft } from "../utils/game";
@@ -85,7 +86,9 @@ export function GameForm({
 }: GameFormProps) {
   const text = (value: string) => localize(value, language);
   const [dateInput, setDateInput] = useState(displayDate(draft.date));
-  const dateHasError = dateInput.length === 10 && !isValidDisplayDate(dateInput);
+  const dateIsValid = isValidDisplayDate(dateInput);
+  const dateHasError =
+    dateInput.length === 10 && (!dateIsValid || isoDate(dateInput) < today);
 
   return (
     <form className="game-form" onSubmit={onSubmit}>
@@ -100,7 +103,7 @@ export function GameForm({
             required
             inputMode="numeric"
             maxLength={10}
-            pattern="\\d{2}/\\d{2}/\\d{4}"
+            pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}"
             placeholder={language === "pt" ? "DD/MM/AAAA" : "DD/MM/YYYY"}
             type="text"
             value={dateInput}
@@ -111,7 +114,10 @@ export function GameForm({
               setDateInput(value);
               onChange({
                 ...draft,
-                date: isValidDisplayDate(value) ? isoDate(value) : "",
+                date:
+                  isValidDisplayDate(value) && isoDate(value) >= today
+                    ? isoDate(value)
+                    : "",
               });
             }}
           />
@@ -177,8 +183,18 @@ export function GameForm({
         <span>{text("Aviso aos jogadores (opcional)")}</span>
         <input maxLength={20} placeholder={text("Ex.: Chegue 15 minutos antes")} value={draft.disclaimer ?? ""} onChange={(event) => onChange({ ...draft, disclaimer: event.target.value })} />
       </label>
-      <button className="primary submit-game">{text(isEditing ? "Salvar alterações" : "Criar jogo")}</button>
-      <button type="button" className="text-button" onClick={onCancel}>{text("Cancelar")}</button>
+      <div className="game-form-actions">
+        <button
+          type="button"
+          className="session-action-button delete game-form-cancel"
+          onClick={onCancel}
+        >
+          {text("Cancelar")}
+        </button>
+        <button className="primary submit-game">
+          {text(isEditing ? "Salvar alterações" : "Criar jogo")}
+        </button>
+      </div>
     </form>
   );
 }
