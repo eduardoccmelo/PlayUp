@@ -3,6 +3,7 @@
 }
 :root {
   --action-button-height: 38px;
+  --page-content-top: 24px;
 }
 body {
   margin: 0;
@@ -319,6 +320,13 @@ em {
   margin: auto;
   padding: 0 24px 60px;
   text-align: center;
+}
+.app-shell > header + .game-directory-heading,
+.app-shell > header + .hero,
+.participant-page > header + .game-directory-heading,
+.group-selector-page > header + .hero,
+.requests-page > header + .requests-section {
+  margin-top: var(--page-content-top);
 }
 .app-shell > .participant-card,
 .participant-page > .participant-card {
@@ -775,6 +783,9 @@ header {
 .group-subsection-heading p {
   margin: 0;
 }
+.group-subsection-heading h1 {
+  white-space: nowrap;
+}
 .group-dashboard-section {
   margin: 18px auto 0;
 }
@@ -1049,6 +1060,34 @@ header {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+.game-management-heading {
+  display: block;
+}
+.game-management-group-name {
+  margin: 0 0 7px;
+  color: #627364;
+  font-size: 14px;
+  font-weight: 800;
+}
+.game-management-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.game-management-title-row .new-game-button {
+  width: auto;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+.group-context-name {
+  display: block;
+  margin-bottom: 7px;
+  color: #627364;
+  font-size: 0.32em;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 .directory-manager {
   max-width: 1100px;
@@ -1383,6 +1422,10 @@ header {
 .directory-player-modal .player-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.directory-player-modal .player-form-error {
+  margin: 8px 0 0;
+  text-align: left;
+}
 .directory-player-modal .player-form-name {
   grid-column: 1 / -1;
   order: 1;
@@ -1661,6 +1704,46 @@ header {
 }
 .invite-modal .confirm-dialog-actions {
   margin-top: 16px;
+}
+.group-invite-section {
+  display: grid;
+  gap: 9px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #e4ece5;
+  text-align: left;
+}
+.group-invite-section:first-of-type {
+  margin-top: 14px;
+}
+.group-invite-section h2 {
+  margin: 0;
+  color: #173c2b;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+}
+.group-invite-name {
+  color: #173c2b;
+  font-weight: 900;
+  text-transform: none;
+}
+.group-invite-section p {
+  margin: 0;
+}
+.group-invite-code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.group-invite-code-row input,
+.group-invite-code-row button {
+  min-width: 0;
+  width: 100%;
+}
+.group-invite-code-row input {
+  min-height: var(--action-button-height);
+  height: var(--action-button-height);
+  padding: 0 10px;
 }
 .password-field {
   position: relative;
@@ -2068,6 +2151,9 @@ header {
   }
 }
 @media (max-width: 722px) {
+  :root {
+    --page-content-top: 16px;
+  }
   .participant-grid {
     grid-template-columns: 1fr;
   }
@@ -2138,6 +2224,42 @@ header {
     inline-size: auto;
   }
 }
+@media (min-width: 751px) and (max-width: 950px) {
+  .group-selector-page .group-row {
+    align-items: center;
+    flex-direction: row;
+  }
+  .group-selector-page .group-row-actions {
+    width: auto;
+    margin-left: auto;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .group-selector-page .group-row-actions > button {
+    padding-inline: 10px;
+    white-space: nowrap;
+  }
+  .group-selector-page .my-games-list .session-row {
+    align-items: center;
+    flex-direction: row;
+    gap: 8px;
+  }
+  .group-selector-page .my-games-list .session-details {
+    display: block;
+    width: auto;
+  }
+  .group-selector-page .my-games-list .session-details > span:before {
+    display: inline;
+  }
+  .group-selector-page .my-games-list .session-row-actions {
+    width: auto;
+    justify-content: flex-end;
+    padding-right: 6px;
+  }
+  .group-selector-page .my-games-list .session-row-actions .session-action-button {
+    flex: 0 0 auto;
+  }
+}
 @media (max-width: 720px) {
   .waiting-game-icon-desktop {
     display: none;
@@ -2161,7 +2283,7 @@ header {
     align-items: flex-start;
     text-align: left;
   }
-  .game-directory-heading {
+  .game-directory-heading:not(.group-subsection-heading) {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -2433,20 +2555,63 @@ header {
   .session-detail-end-time {
     display: none;
   }
-  .group-row {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .group-row-actions,
   .group-passcode-form {
     grid-template-columns: 1fr;
     justify-content: stretch;
     width: 100%;
   }
-  .group-row-actions button,
   .group-passcode-form button {
     width: 100%;
   }
+}
+@media (max-width: 750px) {
+  .group-selector-page .group-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .group-selector-page .group-row-actions {
+    justify-content: stretch;
+    width: 100%;
+  }
+  .group-selector-page .group-row-actions button {
+    width: 100%;
+  }
+  .group-selector-page .group-row-actions.group-member-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .group-selector-page .group-row-actions.group-member-actions button {
+    flex: 1 1 0;
+    width: auto;
+  }
+}
+@media (min-width: 551px) and (max-width: 750px) {
+  .group-selector-page .group-row-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 6px;
+  }
+  .group-selector-page .group-row-actions button {
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+    padding-inline: 8px;
+    white-space: nowrap;
+  }
+  .group-selector-page .group-row-actions .group-edit-button {
+    flex-grow: 0.7;
+  }
+  .group-selector-page .group-row-actions .group-share-button {
+    flex-grow: 1.3;
+  }
+}
+.group-selector-page .my-games-list .session-action-button.view {
+  min-width: 68px;
+  padding-inline: 10px;
 }
 @media (max-width: 480px) {
   .access-page h1,
@@ -2521,6 +2686,40 @@ header {
   .request-game-details > .request-game-time:before {
     content: "·";
     margin-right: 8px;
+  }
+}
+@media (max-width: 550px) {
+  .group-selector-page .group-dashboard-section > .group-subsection-heading {
+    align-items: center;
+    flex-direction: column;
+  }
+  .group-selector-page .group-dashboard-section > .group-subsection-heading .game-directory-actions {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    gap: 8px;
+  }
+  .group-selector-page .group-dashboard-section > .group-subsection-heading .game-directory-actions button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 8px;
+  }
+  .group-selector-page .my-games-section > .group-subsection-heading {
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+  }
+  .group-selector-page .group-subsection-heading h1 {
+    font-size: clamp(26px, 8.5vw, 32px);
+  }
+  .group-selector-page .my-games-section > .group-subsection-heading .game-directory-actions {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+  .group-selector-page .my-games-section > .group-subsection-heading .game-directory-actions button {
+    flex: 1 1 0;
+    min-width: 0;
   }
 }
 .language-switch {

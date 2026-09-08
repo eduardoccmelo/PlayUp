@@ -3,6 +3,7 @@ import { SEED_GROUP_ID } from "../dev/seeds";
 import { localize, type Language } from "../i18n";
 import type { GameSession, PlayerGroup } from "../types";
 import { normalizeText } from "../utils/game";
+import { groupAdminInviteCode, groupPlayerInviteCode } from "../utils/inviteCodes";
 import { CompactGameDetails } from "./EventSummary";
 import { Header } from "./Header";
 
@@ -14,7 +15,7 @@ type GroupAction = {
 
 type GroupInvite = {
   group: PlayerGroup;
-  type: "admin" | "participant";
+  canInviteAdmins: boolean;
 };
 
 type GroupSelectorProps = {
@@ -29,7 +30,8 @@ type GroupSelectorProps = {
   onChangePasscode: (groupId: string, passcode: string) => void;
   onRename: (groupId: string, name: string) => void;
   myGames: GameSession[];
-  onAddMyGame: () => void;
+  onJoinGroup: (code: string) => string | null;
+  onAddMyGame: (code: string) => string | null;
   onOpenMyGame: (game: GameSession) => void;
   onLeaveMyGame: (game: GameSession) => void;
 };
@@ -99,6 +101,7 @@ export function GroupSelector({
   onChangePasscode,
   onRename,
   myGames,
+  onJoinGroup,
   onAddMyGame,
   onOpenMyGame,
   onLeaveMyGame,
@@ -117,11 +120,13 @@ export function GroupSelector({
   const [groupToRename, setGroupToRename] = useState<PlayerGroup | null>(null);
   const [groupToLeave, setGroupToLeave] = useState<PlayerGroup | null>(null);
   const [groupInvite, setGroupInvite] = useState<GroupInvite | null>(null);
-  const [inviteCodeCopied, setInviteCodeCopied] = useState(false);
+  const [inviteCodeCopied, setInviteCodeCopied] = useState<"players" | "admins" | null>(null);
   const [gameToLeave, setGameToLeave] = useState<GameSession | null>(null);
   const [renamedGroupName, setRenamedGroupName] = useState("");
   const [editCurrentPasscode, setEditCurrentPasscode] = useState("");
   const [groupError, setGroupError] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [gameCodeError, setGameCodeError] = useState("");
 
   const createGroup = (event: FormEvent) => {
     event.preventDefault();
@@ -143,19 +148,25 @@ export function GroupSelector({
   };
   const joinGroup = (event: FormEvent) => {
     event.preventDefault();
-    if (!joinCode.trim()) return;
-    const group = groups[0];
-    if (!group) return;
+    const error = onJoinGroup(joinCode);
+    if (error) {
+      setJoinError(error);
+      return;
+    }
     setIsJoining(false);
     setJoinCode("");
-    onChoose(group);
+    setJoinError("");
   };
   const addMyGame = (event: FormEvent) => {
     event.preventDefault();
-    if (!gameCode.trim()) return;
+    const error = onAddMyGame(gameCode);
+    if (error) {
+      setGameCodeError(error);
+      return;
+    }
     setGameCode("");
     setIsAddingGame(false);
-    onAddMyGame();
+    setGameCodeError("");
   };
   const openGroupAction = (group: PlayerGroup, type: GroupAction["type"]) => {
     setCurrentPasscode("");
@@ -171,16 +182,16 @@ export function GroupSelector({
     setNewPasscode("");
     setEditCurrentPasscode("");
   };
-  const openGroupInvite = (group: PlayerGroup, type: GroupInvite["type"]) => {
-    setInviteCodeCopied(false);
-    setGroupInvite({ group, type });
+  const openGroupInvite = (group: PlayerGroup, canInviteAdmins: boolean) => {
+    setInviteCodeCopied(null);
+    setGroupInvite({ group, canInviteAdmins });
   };
-  const copyInviteCode = async (code: string) => {
+  const copyInviteCode = async (code: string, type: "players" | "admins") => {
     try {
       await navigator.clipboard.writeText(code);
-      setInviteCodeCopied(true);
+      setInviteCodeCopied(type);
     } catch {
-      setInviteCodeCopied(false);
+      setInviteCodeCopied(null);
     }
   };
 
@@ -210,7 +221,7 @@ export function GroupSelector({
             >
               + {localize("Criar grupo", language)}
             </button>
-            <button className="secondary" onClick={() => setIsJoining(true)}>
+            <button className="secondary" onClick={() => { setJoinError(""); setIsJoining(true); }}>
               {localize("Entrar em um grupo", language)}
             </button>
           </div>
@@ -278,11 +289,9 @@ export function GroupSelector({
                 required
                 placeholder={localize("Código do grupo", language)}
                 value={joinCode}
-                onChange={(event) => setJoinCode(event.target.value)}
+                onChange={(event) => { setJoinCode(event.target.value); setJoinError(""); }}
               />
-              <small className="success">
-                {localize("Acesso liberado nesta demonstração.", language)}
-              </small>
+              {joinError && <small className="error">{localize(joinError, language)}</small>}
               <div className="confirm-dialog-actions">
                 <button
                   className="secondary"
@@ -319,11 +328,9 @@ export function GroupSelector({
                 required
                 placeholder={localize("Código do jogo", language)}
                 value={gameCode}
-                onChange={(event) => setGameCode(event.target.value)}
-              />
-              <small className="success">
-                {localize("Acesso liberado nesta demonstração.", language)}
-              </small>
+              onChange={(event) => { setGameCode(event.target.value); setGameCodeError(""); }}
+            />
+              {gameCodeError && <small className="error">{localize(gameCodeError, language)}</small>}
               <div className="confirm-dialog-actions">
                 <button
                   className="secondary"
@@ -354,10 +361,10 @@ export function GroupSelector({
                     {isAdmin && <span className="group-admin-badge">Admin</span>}
                   </div>
                   <small>
-                    {localize("Código do grupo", language)}: {group.id}
+                    {localize("Código do grupo", language)}: {groupPlayerInviteCode(group)}
                   </small>
                 </div>
-                <div className="group-row-actions">
+                <div className={`group-row-actions ${isAdmin ? "" : "group-member-actions"}`}>
                   <button
                     className="session-action-button view"
                     onClick={() => onChoose(group)}
@@ -365,12 +372,20 @@ export function GroupSelector({
                     {localize("Ver jogos", language)}
                   </button>
                   {!isAdmin && (
-                    <button
-                      className="secondary"
-                      onClick={() => setGroupToLeave(group)}
-                    >
-                      {localize("Sair do grupo", language)}
-                    </button>
+                    <>
+                      <button
+                        className="primary"
+                        onClick={() => openGroupInvite(group, false)}
+                      >
+                        {localize("Compartilhar", language)}
+                      </button>
+                      <button
+                        className="secondary"
+                        onClick={() => setGroupToLeave(group)}
+                      >
+                        {localize("Sair do grupo", language)}
+                      </button>
+                    </>
                   )}
                   {isAdmin && (
                     <>
@@ -381,24 +396,16 @@ export function GroupSelector({
                         {localize("Gerenciar", language)}
                       </button>
                       <button
-                        className="secondary"
+                        className="secondary group-edit-button"
                         onClick={() => openRenameDialog(group)}
                       >
                         {localize("Editar", language)}
                       </button>
                       <button
-                        className="primary"
-                        onClick={() =>
-                          openGroupInvite(group, "participant")
-                        }
+                        className="primary group-share-button"
+                        onClick={() => openGroupInvite(group, true)}
                       >
                         {localize("Compartilhar", language)}
-                      </button>
-                      <button
-                        className="secondary"
-                        onClick={() => openGroupInvite(group, "admin")}
-                      >
-                        {localize("Convidar admins", language)}
                       </button>
                       <button
                         className="session-action-button delete"
@@ -628,42 +635,54 @@ export function GroupSelector({
             role="dialog"
           >
             <p className="form-mode">
-              {localize(
-                groupInvite.type === "admin"
-                  ? "CONVITE DE ADMIN"
-                  : "CONVITE PARA O GRUPO",
-                language,
-              )}
+              {localize("COMPARTILHAR GRUPO", language)}: {" "}
+              <strong className="group-invite-name">{groupInvite.group.name}</strong>
             </p>
-            <p>
-              {localize(
-                groupInvite.type === "admin"
-                  ? "Este convite pede a senha do grupo antes de liberar o acesso de admin."
-                  : "Este convite libera a visualização dos jogos ativos do grupo.",
-                language,
-              )}
-            </p>
-            <input readOnly value={`PLAYUP-GROUP-${groupInvite.group.id}`} />
+            <div className="group-invite-section">
+              <h2>{localize("CONVIDAR JOGADORES", language)}</h2>
+              <p>
+                {localize("Este convite libera a visualização dos jogos ativos do grupo.", language)}
+              </p>
+              <div className="group-invite-code-row">
+                <input readOnly value={groupPlayerInviteCode(groupInvite.group)} />
+                <button
+                  className="primary"
+                  onClick={() => copyInviteCode(groupPlayerInviteCode(groupInvite.group), "players")}
+                >
+                  {localize("Copiar código", language)}
+                </button>
+              </div>
+            </div>
+            {groupInvite.canInviteAdmins && (
+              <div className="group-invite-section">
+                <h2>{localize("CONVIDAR ADMINS", language)}</h2>
+                <p>
+                  {localize("Este convite pede a senha do grupo antes de liberar o acesso de admin.", language)}
+                </p>
+                <div className="group-invite-code-row">
+                  <input readOnly value={groupAdminInviteCode(groupInvite.group)} />
+                  <button
+                    className="primary"
+                    onClick={() => copyInviteCode(groupAdminInviteCode(groupInvite.group), "admins")}
+                  >
+                    {localize("Copiar código", language)}
+                  </button>
+                </div>
+              </div>
+            )}
             <small className="success">
               {localize(
-                inviteCodeCopied
-                  ? "Código copiado."
-                  : "Copie este código e envie ao convidado.",
+                inviteCodeCopied === "players"
+                  ? "Código para jogadores copiado."
+                  : inviteCodeCopied === "admins"
+                    ? "Código para admins copiado."
+                    : "Copie este código e envie ao convidado.",
                 language,
               )}
             </small>
             <div className="confirm-dialog-actions">
-              <button
-                className="session-action-button delete"
-                onClick={() => setGroupInvite(null)}
-              >
+              <button className="session-action-button delete" onClick={() => setGroupInvite(null)}>
                 {localize("Fechar", language)}
-              </button>
-              <button
-                className="primary"
-                onClick={() => copyInviteCode(`PLAYUP-GROUP-${groupInvite.group.id}`)}
-              >
-                {localize("Copiar código", language)}
               </button>
             </div>
           </section>
@@ -781,6 +800,7 @@ export function GroupSelector({
             {groupAction.step === "confirm-delete" && (
               <>
                 <h2>{localize("Excluir grupo", language)}</h2>
+                <p><strong>{groupAction.group.name}</strong></p>
                 <p>
                   {localize(
                     "Todos os jogos e jogadores deste grupo serão apagados.",

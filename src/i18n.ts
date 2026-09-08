@@ -21,6 +21,8 @@ export const translations: Record<
       "Review the payments reported by players.",
     "Confirmar pagamento": "Confirm payment",
     "Marcar como lido": "Mark as read",
+    "Aprovar tudo": "Approve all",
+    "Dispensar tudo": "Dismiss all",
     "Pagamento confirmado pelo jogador.": "Payment confirmed by the player.",
     "Pagamento desmarcado pelo jogador.": "Payment unchecked by the player.",
     "Jogo salvo": "Saved game",
@@ -34,6 +36,8 @@ export const translations: Record<
     "Verificar código": "Verify code",
     "Enviar novo código": "Send a new code",
     "Código de acesso inválido.": "Invalid access code.",
+    "Código de grupo inválido.": "Invalid group code.",
+    "Código de jogo inválido.": "Invalid game code.",
     "Informe um e-mail válido.": "Enter a valid email address.",
     "Organize a próxima": "Organize your next",
     "pelada.": "match.",
@@ -49,6 +53,9 @@ export const translations: Record<
     "Convidar admins": "Invite admins",
     "Convidar participante": "Invite participant",
     Compartilhar: "Share",
+    "COMPARTILHAR GRUPO": "SHARE GROUP",
+    "CONVIDAR JOGADORES": "INVITE PLAYERS",
+    "CONVIDAR ADMINS": "INVITE ADMINS",
     "EDITAR GRUPO": "EDIT GROUP",
     "Nova senha (opcional)": "New passcode (optional)",
     "Senha atual (obrigatória para trocar)":
@@ -56,6 +63,8 @@ export const translations: Record<
     Confirmar: "Confirm",
     "Copiar código": "Copy code",
     "Código copiado.": "Code copied.",
+    "Código para jogadores copiado.": "Player invite code copied.",
+    "Código para admins copiado.": "Admin invite code copied.",
     "Copie este código e envie ao convidado.":
       "Copy this code and send it to the invitee.",
     "O jogo já está cheio. Deseja colocar seu nome na lista de espera?":

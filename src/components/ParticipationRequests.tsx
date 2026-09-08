@@ -6,6 +6,8 @@ type ParticipationRequestsProps = {
   games: GameSession[];
   requests: ParticipationRequest[];
   onApprove: (request: ParticipationRequest) => void;
+  onApproveAll: (requests: ParticipationRequest[]) => void;
+  onDismissAll: (requests: ParticipationRequest[]) => void;
   onBack: () => void;
   language: Language;
 };
@@ -36,6 +38,8 @@ export function ParticipationRequests({
   games,
   requests,
   onApprove,
+  onApproveAll,
+  onDismissAll,
   onBack,
   language,
 }: ParticipationRequestsProps) {
@@ -59,6 +63,9 @@ export function ParticipationRequests({
             <p className="intro">
               {localize("Aprove cada nome para incluí-lo no cadastro geral.", language)}
             </p>
+            <button className="secondary" onClick={() => onApproveAll(joinRequests)}>
+              {localize("Aprovar tudo", language)}
+            </button>
           </div>
           <section className="panel requests-list">
             {joinRequests.map((request) => (
@@ -84,6 +91,9 @@ export function ParticipationRequests({
             <p className="intro">
               {localize("Aprove a saída para remover o jogador da lista do jogo.", language)}
             </p>
+            <button className="secondary" onClick={() => onApproveAll(leaveRequests)}>
+              {localize("Aprovar tudo", language)}
+            </button>
           </div>
           <section className="panel requests-list">
             {leaveRequests.map((request) => (
@@ -105,6 +115,9 @@ export function ParticipationRequests({
           <div className="requests-section-heading">
             <h1>{localize("Confirmações de", language)} <em>{localize("pagamento", language)}</em></h1>
             <p className="intro">{localize("Revise os pagamentos informados pelos jogadores.", language)}</p>
+            <button className="secondary" onClick={() => onDismissAll(paymentRequests)}>
+              {localize("Dispensar tudo", language)}
+            </button>
           </div>
           <section className="panel requests-list">
             {paymentRequests.map((request) => (

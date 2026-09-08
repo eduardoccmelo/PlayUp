@@ -4,7 +4,7 @@ import { getStoredValue, saveStoredValue } from "../services/browserStorage";
 export const SEED_GROUP_ID = "seed-dev";
 export const SEED_GROUP_NAME = "Test Group";
 export const SEED_GROUP_PASSCODE = "admin";
-const SEED_VERSION = 2;
+const SEED_VERSION = 3;
 
 const players: Player[] = [
   { id: 1, name: "Alex Morgan", level: 5, mobility: "rapido", condition: "boa", position: "ataque" },
@@ -114,6 +114,81 @@ export const seedGroup = (): PlayerGroup => ({
   requests: [],
 });
 
+const communityPlayers: Player[] = [
+  { id: 101, name: "Bruno Silva", level: 4, mobility: "rapido", condition: "boa", position: "ataque" },
+  { id: 102, name: "Camila Rocha", level: 3, mobility: "neutro", condition: "boa", position: "defesa" },
+  { id: 103, name: "Diego Lima", level: 5, mobility: "rapido", condition: "neutro", position: "goleiro" },
+  { id: 104, name: "Fernanda Alves", level: 2, mobility: "lento", condition: "ruim", position: "defesa" },
+  { id: 105, name: "Gabriel Costa", level: 4, mobility: "neutro", condition: "boa", position: "ataque" },
+  { id: 106, name: "Helena Souza", level: 3, mobility: "rapido", condition: "neutro", position: "neutro" },
+];
+
+const neighborhoodPlayers: Player[] = [
+  { id: 201, name: "Igor Nunes", level: 1, mobility: "lento", condition: "ruim", position: "goleiro" },
+  { id: 202, name: "Juliana Freitas", level: 5, mobility: "rapido", condition: "boa", position: "ataque" },
+  { id: 203, name: "Kai Mendes", level: 3, mobility: "neutro", condition: "neutro", position: "defesa" },
+  { id: 204, name: "Larissa Melo", level: 4, mobility: "rapido", condition: "boa", position: "defesa" },
+  { id: 205, name: "Marcos Vinicius", level: 2, mobility: "neutro", condition: "neutro", position: "ataque" },
+  { id: 206, name: "Nina Prado", level: 3, mobility: "lento", condition: "boa", position: "neutro" },
+];
+
+const demoGame = (
+  id: number,
+  days: number,
+  location: string,
+  court: string,
+  playerIds: number[],
+  waitlistIds: number[],
+): GameSession => ({
+  id,
+  date: dateFromToday(days),
+  time: "20:00",
+  endTime: "21:15",
+  duration: 75,
+  location,
+  courtNumber: court,
+  courtCost: 100,
+  currency: "EUR",
+  maxPlayers: 6,
+  minPlayers: 4,
+  cancellationHours: 2,
+  cancelled: false,
+  paymentInfo: "Pix ou transferência",
+  disclaimer: "Dados de demonstração",
+  playerIds,
+  waitlistIds,
+  paidPlayerIds: playerIds.slice(0, Math.max(0, playerIds.length - 1)),
+  teams: null,
+});
+
+export const seedGroups = (): PlayerGroup[] => [
+  seedGroup(),
+  {
+    id: "city-night-7f3a",
+    name: "City Night Football",
+    organizerPasscode: "nightplay",
+    createdAt: new Date().toISOString(),
+    players: communityPlayers,
+    games: [
+      demoGame(201, 2, "Urban Sports Center", "B", [101, 102, 103, 104], [105]),
+      demoGame(202, 6, "Urban Sports Center", "A", [101, 103, 105, 106], []),
+    ],
+    requests: [],
+  },
+  {
+    id: "weekend-friends-b9c2",
+    name: "Weekend Friends",
+    organizerPasscode: "weekend",
+    createdAt: new Date().toISOString(),
+    players: neighborhoodPlayers,
+    games: [
+      demoGame(301, 3, "Green Field Club", "3", [201, 202, 203, 204, 205, 206], []),
+      demoGame(302, 9, "Green Field Club", "1", [202, 204, 206], []),
+    ],
+    requests: [],
+  },
+];
+
 export function seedBrowserStorage() {
   const existingGroups = getStoredValue<PlayerGroup[]>("playup.groups.v1", []);
   const storedSeedVersion = getStoredValue<number>("playup.seed-version", 0);
@@ -122,19 +197,19 @@ export function seedBrowserStorage() {
   );
 
   if (existingSeedGroup && storedSeedVersion < SEED_VERSION) {
-    saveStoredValue(
-      "playup.groups.v1",
-      existingGroups.map((group) =>
-        group.id === SEED_GROUP_ID ? seedGroup() : group,
-      ),
-    );
+    const refreshedSeeds = seedGroups();
+    const seedIds = new Set(refreshedSeeds.map((group) => group.id));
+    saveStoredValue("playup.groups.v1", [
+      ...refreshedSeeds,
+      ...existingGroups.filter((group) => !seedIds.has(group.id)),
+    ]);
     saveStoredValue("playup.seed-version", SEED_VERSION);
     return;
   }
 
   if (existingGroups.length) return;
 
-  saveStoredValue("playup.groups.v1", [seedGroup()]);
+  saveStoredValue("playup.groups.v1", seedGroups());
   saveStoredValue("playup.active-group.v1", SEED_GROUP_ID);
   saveStoredValue("playup.seed-version", SEED_VERSION);
 }
