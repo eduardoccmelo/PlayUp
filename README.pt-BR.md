@@ -2,13 +2,14 @@
 
 **[Read in English](README.md)**
 
-PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Organizadores criam jogos, acompanham pagamentos e geram times equilibrados; participantes encontram seu grupo, consultam os jogos e confirmam a intenção de jogar.
+PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um mesmo perfil pode gerenciar alguns grupos, participar de outros e manter uma lista própria dos próximos jogos.
 
-> O projeto está atualmente em modo MVP e persiste os dados no navegador. Não há backend, autenticação de usuários nem sincronização entre dispositivos nesta versão.
+> O projeto está atualmente em modo MVP. Dados e permissões são simulados no navegador; ainda não há backend, autenticação real nem sincronização entre dispositivos.
 
 ## Índice
 
 - [Funcionalidades](#funcionalidades)
+- [Fluxo atual do protótipo](#fluxo-atual-do-protótipo)
 - [Como usar](#como-usar)
 - [Regras do jogo](#regras-do-jogo)
 - [Balanceamento dos times](#balanceamento-dos-times)
@@ -24,14 +25,14 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Organ
 ### Grupos de jogos
 
 - Criação de múltiplos grupos independentes.
-- Identificador único para cada grupo, exibido na lista de grupos.
-- Nome de grupo editável, com limite de 20 caracteres.
-- Senha compartilhada entre organizadores para entrar no painel de administração.
-- Alteração de senha mediante confirmação da senha atual.
-- Exclusão de grupo mediante confirmação da senha atual.
+- Cada grupo possui um código local para participantes; os dados de demonstração também incluem grupos em que o perfil atual não é admin.
+- Ser admin é uma permissão por grupo, não por conta.
+- Admins gerenciam jogos e jogadores; participantes veem jogos e compartilham acesso de participante.
+- Um único modal de compartilhar reúne códigos de convite para jogadores e admins.
+- Alteração da senha exige a senha atual.
 - Separação de dados por grupo: jogadores, jogos, solicitações, pagamentos e times não se misturam entre grupos.
 
-### Organizadores
+### Admins de grupo
 
 - Criar, editar, visualizar e excluir jogos.
 - Cadastro geral de jogadores do grupo.
@@ -40,17 +41,18 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Organ
 - Aprovação de solicitações de participação enviadas por participantes.
 - Inclusão e remoção de jogadores da lista de cada jogo.
 - Controle de pagamento por checkbox.
-- Geração e novo balanceamento de times.
+- Geração e novo balanceamento de times, distribuindo goleiros e outras posições de forma justa.
 - Visualização dos pontos de balanceamento de cada jogador, exclusiva do painel administrativo.
 
-### Participantes
+### Participantes e guests
 
-- Escolha de um grupo para consultar os próximos jogos.
-- Consulta da lista e dos times sem precisar se adicionar à partida.
-- Confirmação de presença pesquisando o próprio nome no cadastro do grupo.
-- Solicitação de participação quando o nome ainda não existe no cadastro.
-- Consulta de participantes, lista de espera, pagamentos e times em modo somente leitura.
-- Remoção do próprio nome da lista do jogo, sem apagar o jogador do cadastro geral.
+- Painel único para grupos e próximos jogos pessoais.
+- Membro do grupo entra no jogo com o próprio nome, sem aprovação.
+- Se o jogo estiver cheio, a entrada vai para a lista de espera.
+- Quem não é membro pode adicionar um jogo por código, vê-lo em modo leitura e solicitar acesso.
+- Guest só usa as ações do jogo depois da aprovação de um admin.
+- Cada participante altera somente seu próprio pagamento e remove somente o próprio nome.
+- Nomes não podem ser duplicados dentro de um grupo ou de uma lista ativa de jogo.
 
 ### Jogos
 
@@ -88,27 +90,31 @@ Os jogos são ordenados cronologicamente. Para participantes, um jogo encerrado 
 - Layout responsivo para desktop e celular.
 - Logotipo PlayUp no cabeçalho; clicar nele leva à página inicial quando aplicável.
 
+## Fluxo atual do protótipo
+
+1. Defina um nome de perfil local no primeiro uso.
+2. Em **Meus grupos**, crie/entre em grupos, gerencie aqueles em que você é admin ou veja aqueles em que é apenas participante.
+3. **Meus próximos jogos** mostra apenas jogos em que seu perfil está na lista principal ou de espera.
+4. Use um código de grupo para adicionar um grupo ou um código de jogo para adicionar um jogo sem entrar no grupo dele.
+5. Membros entram no jogo imediatamente; guests solicitam acesso e ficam pendentes até um admin aprovar.
+
+Os formatos temporários são validados contra os dados locais:
+
+| Uso | Formato local |
+| --- | --- |
+| Participante de grupo | `PUG-<groupId>` |
+| Admin de grupo | `PUA-ADMIN-<groupId>` |
+| Jogo específico | `PUG-GAME-<groupId>-<gameId>` |
+
+Esses códigos servem somente para testar a interface. Em produção, devem ser tokens aleatórios e revogáveis do servidor. Consulte a [especificação de backend](docs/backend-schema.md).
+
 ## Como usar
 
-### Como organizador
-
-1. Na página inicial, escolha **Sou organizador**.
-2. Crie um grupo ou entre em um grupo existente com a senha compartilhada dos organizadores.
-3. No painel, clique em **Novo jogo** e preencha os dados do evento.
-4. Cadastre jogadores no painel **Gerenciar jogadores**.
-5. Abra um jogo para adicionar jogadores à lista, editar atributos, marcar pagamentos e acompanhar a lista de espera.
-6. Quando houver ao menos dois jogadores pagos, use **Gerar times**.
-7. Depois da primeira geração, o mesmo botão passa a se chamar **Balancear novamente**.
-
-### Como participante
-
-1. Na página inicial, escolha **Vou jogar**.
-2. Escolha o grupo correspondente.
-3. Em cada jogo disponível, use uma das ações:
-   - **Ver**: abre a lista e os times em modo leitura;
-   - **Participar**: pesquisa e seleciona seu nome para entrar na lista;
-   - **Solicitar participação**: envia seu nome para aprovação de um organizador.
-4. Após entrar na lista, acompanhe sua situação de pagamento e os times. Se necessário, remova apenas seu nome daquele jogo.
+1. Defina ou edite seu nome de perfil local.
+2. Em **Meus grupos**, crie/entre em um grupo ou abra os jogos dele.
+3. Se você for admin daquele grupo, use **Gerenciar** para criar jogos, manter jogadores e processar solicitações.
+4. Em **Meus próximos jogos**, veja jogos em que você participa, altere seu próprio pagamento ou saia da lista.
+5. Use **Tenho um código de jogo** para um jogo fora dos seus grupos. No protótipo, o código abre um jogo local; no backend, o guest solicitará aprovação.
 
 ## Regras do jogo
 
@@ -243,16 +249,16 @@ Os dados são salvos apenas no `localStorage` do navegador. Isso significa que:
 - grupos não são compartilhados automaticamente com outros dispositivos;
 - limpar os dados do navegador pode apagar os grupos locais;
 - as senhas dos organizadores não têm proteção de servidor;
-- o código de grupo ainda não permite acesso remoto por link;
-- não há contas, permissões reais, recuperação de senha nem auditoria.
+- os códigos são validados somente contra dados locais e seedados;
+- não há contas reais, envio de e-mail, recuperação de código, permissões reais nem auditoria.
 
-Para uma versão comercial, a evolução natural é adicionar uma API, banco de dados, identificadores globais de grupo, links compartilháveis e autenticação ou autorização apropriada para organizadores.
+O modelo planejado de backend, permissões, API, recuperação de perfil e convites seguros está em [docs/backend-schema.md](docs/backend-schema.md).
 
 ## Próximos passos sugeridos
 
-- Backend e banco de dados para sincronizar grupos entre dispositivos.
-- Link compartilhável por grupo, por exemplo `/g/<group-id>`.
-- Convites de organizadores e permissões por função.
+- Implementar o backend e banco descritos em [docs/backend-schema.md](docs/backend-schema.md).
+- Recuperação de perfil por e-mail com regeneração do código de acesso.
+- Links seguros e compartilháveis para grupos e jogos.
 - Integração de pagamento e confirmação automática.
 - Notificações por e-mail, WhatsApp ou push.
 - Histórico de partidas, resultados e estatísticas.

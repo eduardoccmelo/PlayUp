@@ -2,13 +2,14 @@
 
 **[Leia em português](README.pt-BR.md)**
 
-PlayUp is a web application for organizing group sports games. Organizers create games, track payments, and generate balanced teams; participants find their group, browse games, and confirm that they want to play.
+PlayUp is a web application for organizing group sports games. One profile can manage some groups, participate in others, and keep a separate list of upcoming games.
 
-> This project is currently an MVP. Data is stored in the browser, and this version has no backend, user authentication, or cross-device synchronization.
+> This project is currently an MVP. Data and permissions are simulated in browser storage; there is no backend, real authentication, or cross-device synchronization yet.
 
 ## Contents
 
 - [Features](#features)
+- [Current prototype flow](#current-prototype-flow)
 - [How to use](#how-to-use)
 - [Game rules](#game-rules)
 - [Team balancing](#team-balancing)
@@ -24,13 +25,14 @@ PlayUp is a web application for organizing group sports games. Organizers create
 ### Game groups
 
 - Create multiple independent groups.
-- Every group has a unique identifier displayed in the group list.
-- Edit group names, up to 20 characters.
-- Use a shared organizer passcode to enter the management area.
-- Change or delete a group only after confirming the current passcode.
+- Every group has a local participant code; the current seed also includes groups where the current profile is not an administrator.
+- Admin status belongs to a group, not to the whole account.
+- Administrators can manage games and players; participants can view games and share participant access.
+- Share one group dialog with distinct participant and admin invitation codes.
+- Change a group passcode only after confirming the current passcode.
 - Keep players, games, join requests, payments, and teams completely separate for each group.
 
-### Organizers
+### Group administrators
 
 - Create, edit, view, and delete games.
 - Maintain a group-wide player directory.
@@ -38,17 +40,18 @@ PlayUp is a web application for organizing group sports games. Organizers create
 - Approve participant join requests.
 - Add or remove players from an individual game list.
 - Track payment status with a checkbox.
-- Generate and rebalance teams.
+- Generate and rebalance teams while distributing goalkeepers and other positions fairly.
 - See the score used for team balancing; this information is organizer-only.
 
-### Participants
+### Participants and guests
 
-- Choose a group to browse its upcoming games.
-- View the game list and teams without adding themselves to the game.
-- Confirm attendance by searching for their name in the group directory.
-- Request to join when their name has not been registered yet.
-- View participants, waiting list, payment status, and teams in read-only mode.
-- Remove only their name from a game while remaining in the group directory.
+- View groups and personal upcoming games from one dashboard.
+- A group member joins with their linked player name without approval.
+- When a game is full, joining places the player on its waiting list.
+- A non-member can add a game by code, see it in read-only mode, and request access.
+- A guest has game actions only after an administrator approves the request.
+- A participant can update only their own payment checkbox and remove only their own name from a game.
+- Player names cannot be duplicated within a group or an active game list.
 
 ### Games
 
@@ -86,27 +89,31 @@ Games are displayed in chronological order. For participants, a completed game r
 - Responsive desktop and mobile layout.
 - PlayUp branding in the header; clicking the logo returns to the appropriate home screen.
 
+## Current prototype flow
+
+1. Set a local profile name on first use.
+2. Open **My groups** to create a group, join a group, manage groups where you are an admin, or browse groups where you are only a participant.
+3. **My next games** lists only games in which your profile is on the main or waiting list.
+4. Use a local group code to add a group, or a local game code to add a game without joining its group.
+5. Group members join a game immediately with their own profile. Guests request access and remain pending until an admin approves them.
+
+The temporary code formats are validated against local data:
+
+| Purpose | Local format |
+| --- | --- |
+| Group participant | `PUG-<groupId>` |
+| Group admin | `PUA-ADMIN-<groupId>` |
+| Specific game | `PUG-GAME-<groupId>-<gameId>` |
+
+These formats are for UI testing only. Production must use random, revocable server-side tokens. See [the backend specification](docs/backend-schema.md) for the target data model and API.
+
 ## How to use
 
-### As an organizer
-
-1. On the landing page, select **I'm an organizer**.
-2. Create a group or enter an existing group with the shared organizer passcode.
-3. Click **New game** and fill in the event details.
-4. Register players in the **Manage players** area.
-5. Open a game to add players, edit their attributes, track payments, and manage the waiting list.
-6. Once at least two players have paid, click **Generate teams**.
-7. After the first generation, that button becomes **Balance again**.
-
-### As a participant
-
-1. On the landing page, select **I'm playing**.
-2. Choose the relevant group.
-3. Each available game offers three actions:
-   - **View** opens the list and teams in read-only mode;
-   - **Join** searches for and selects your registered name;
-   - **Request to join** sends your name to an organizer for approval.
-4. After joining, follow your payment status and the teams. You can remove only your own name from that game if needed.
+1. Set or edit your local profile name.
+2. From **My groups**, create/join a group or open its games.
+3. If you are an admin of that group, use **Manage** to create games, maintain players, and process guest requests.
+4. From **My next games**, view a game you are already attending, update your own payment state, or leave the list.
+5. Use **I have a game code** for a game outside your groups. In this prototype, the code opens a local demo game; the backend flow will request approval for a true guest.
 
 ## Game rules
 
@@ -241,16 +248,16 @@ Data is stored only in the browser's `localStorage`. Consequently:
 - groups are not shared automatically between devices;
 - clearing browser data can erase local groups;
 - organizer passcodes are not protected by a server;
-- the group code does not yet provide remote link access;
-- there are no accounts, real permissions, passcode recovery, or audit trail.
+- codes are validated only against local and seeded data, not remotely;
+- there are no real accounts, email delivery, passcode recovery, permissions, or audit trail.
 
-For a commercial version, the natural next step is an API and database with global group identifiers, shareable links, and suitable organizer authentication or authorization.
+The planned backend model, permissions, API, profile recovery, and secure invite/token strategy are documented in [docs/backend-schema.md](docs/backend-schema.md).
 
 ## Suggested next steps
 
-- Backend and database to synchronize groups across devices.
-- Shareable group links, such as `/g/<group-id>`.
-- Organizer invites and role-based permissions.
+- Implement the backend and database described in [docs/backend-schema.md](docs/backend-schema.md).
+- Email-based profile recovery with an access-code regeneration flow.
+- Secure, shareable group and game links.
 - Payment integration and automatic payment confirmation.
 - Email, WhatsApp, or push notifications.
 - Match history, results, and statistics.
