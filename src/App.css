@@ -3102,6 +3102,17 @@ header {
     width: auto;
   }
 }
+@media (max-width: 550px) {
+  .participant-game-list .session-action-button.view {
+    flex: 0.65 1 0;
+  }
+  .participant-game-list .session-action-button.confirm {
+    flex: 1.45 1 0;
+  }
+  .participant-game-list .session-action-button.leave {
+    flex: 1 1 0;
+  }
+}
 @media (max-width: 800px) {
   .participant-game-list .weekday-name-short {
     display: none;
