@@ -61,6 +61,12 @@ const noRequests: ParticipationRequest[] = [];
 const isGameReadyForBalancing = (game: GameSession) =>
   game.playerIds.length === game.maxPlayers &&
   game.playerIds.every((playerId) => game.paidPlayerIds.includes(playerId));
+const resetPageScroll = () => {
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+  document.scrollingElement?.scrollTo({ left: 0, top: 0, behavior: "auto" });
+};
 type SavedProfile = {
   user: CurrentUser;
   groups: PlayerGroup[];
@@ -244,10 +250,29 @@ export function PlayUpApp() {
     [currentUser, groups, guestGameIds],
   );
   useLayoutEffect(() => {
-    window.scrollTo(0, 0);
-    const frameId = window.requestAnimationFrame(() => window.scrollTo(0, 0));
-    return () => window.cancelAnimationFrame(frameId);
+    resetPageScroll();
+    const frameId = window.requestAnimationFrame(resetPageScroll);
+    const timeoutId = window.setTimeout(resetPageScroll, 80);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+    };
   }, [access, activeGroupId, gameId]);
+  useEffect(() => {
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    const resetAfterPageShow = () => {
+      resetPageScroll();
+      window.requestAnimationFrame(resetPageScroll);
+      window.setTimeout(resetPageScroll, 80);
+    };
+    window.addEventListener("pageshow", resetAfterPageShow);
+    resetAfterPageShow();
+    return () => {
+      window.removeEventListener("pageshow", resetAfterPageShow);
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, []);
   const game = games.find((g) => g.id === gameId) ?? null;
   const [gameForm, setGameForm] = useState(emptyGame);
   const [editGame, setEditGame] = useState<number | null>(null);
