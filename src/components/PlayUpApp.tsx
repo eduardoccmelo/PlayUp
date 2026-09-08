@@ -46,6 +46,8 @@ import {
   sameInviteCode,
 } from "../utils/inviteCodes";
 import {
+  PARTICIPANT_SEED_GROUP_ID,
+  SEED_GROUP_ID,
   seedGroups,
 } from "../dev/seeds";
 const emptyPlayer = {
@@ -154,6 +156,7 @@ export function PlayUpApp() {
     "playup.active-group.v1",
     null,
   );
+  const adminGroupIds = currentUser?.adminGroupIds ?? [];
   const activeGroup =
     groups.find((group) => group.id === activeGroupId) ?? null;
   const players = activeGroup?.players ?? noPlayers;
@@ -219,6 +222,74 @@ export function PlayUpApp() {
   const [profileRequested, setProfileRequested] = useState(false);
   const [inviteKind, setInviteKind] = useState<"group-admin" | "group-participant" | "game" | null>(null);
   const [inviteCodeCopied, setInviteCodeCopied] = useState(false);
+  useEffect(() => {
+    if (!currentUser?.devGodMode) return;
+
+    const attachDemoPlayer = (group: PlayerGroup, includeDemoGames: boolean) => {
+      const existingPlayer =
+        group.players.find((player) => player.ownerUserId === currentUser.id) ??
+        group.players.find(
+          (player) =>
+            normalizeText(player.name) ===
+            normalizeText(currentUser.displayName),
+        );
+      const ownedPlayer = existingPlayer
+        ? { ...existingPlayer, ownerUserId: currentUser.id }
+        : createOwnedPlayer(group.players, currentUser);
+      const nextPlayers = existingPlayer
+        ? group.players.map((player) =>
+            player.id === ownedPlayer.id ? ownedPlayer : player,
+          )
+        : [...group.players, ownedPlayer];
+      const nextGames = includeDemoGames
+        ? group.games.map((gameSession) => {
+            const isAlreadyListed =
+              gameSession.playerIds.includes(ownedPlayer.id) ||
+              gameSession.waitlistIds.includes(ownedPlayer.id);
+            if (isAlreadyListed) return gameSession;
+            if (gameSession.id === 201) {
+              return {
+                ...gameSession,
+                waitlistIds: [...gameSession.waitlistIds, ownedPlayer.id],
+              };
+            }
+            if (gameSession.id === 202) {
+              return gameSession.playerIds.length < gameSession.maxPlayers
+                ? {
+                    ...gameSession,
+                    playerIds: [...gameSession.playerIds, ownedPlayer.id],
+                  }
+                : {
+                    ...gameSession,
+                    waitlistIds: [...gameSession.waitlistIds, ownedPlayer.id],
+                  };
+            }
+            return gameSession;
+          })
+        : group.games;
+      return { ...group, players: nextPlayers, games: nextGames };
+    };
+
+    setGroups((currentGroups) =>
+      currentGroups.map((group) => {
+        if (group.id === SEED_GROUP_ID) return attachDemoPlayer(group, false);
+        if (group.id === PARTICIPANT_SEED_GROUP_ID)
+          return attachDemoPlayer(group, true);
+        return group;
+      }),
+    );
+    setCurrentUser((user) =>
+      !user || !user.devGodMode
+        ? user
+        : {
+            ...user,
+            devGodMode: false,
+            adminGroupIds: [
+              ...new Set([...(user.adminGroupIds ?? []), SEED_GROUP_ID]),
+            ],
+          },
+    );
+  }, [currentUser, setCurrentUser, setGroups]);
   const currentUserFirst = useCallback(
     (first: Player, second: Player) => {
       const firstIsCurrent = isCurrentUserPlayer(first, currentUser);
@@ -919,7 +990,7 @@ export function PlayUpApp() {
         groups={groups}
         user={currentUser}
         language={language}
-        adminGroupIds={currentUser?.adminGroupIds ?? (currentUser?.devGodMode ? groups.map((group) => group.id) : [])}
+        adminGroupIds={adminGroupIds}
         onBack={() => {
           setActiveGroupId(null);
           setAccess("home");
@@ -953,7 +1024,7 @@ export function PlayUpApp() {
           setEntered(false);
           setPick("");
           setAccess(
-            (currentUser?.adminGroupIds ?? []).includes(group.id)
+            adminGroupIds.includes(group.id)
               ? "admin"
               : "player",
           );
@@ -1235,9 +1306,9 @@ export function PlayUpApp() {
         user={currentUser}
         isGroupMember={players.some((player) =>
           isCurrentUserPlayer(player, currentUser),
-        ) || (currentUser?.adminGroupIds ?? (currentUser?.devGodMode ? [activeGroupId] : [])).includes(activeGroupId ?? "")}
+        ) || adminGroupIds.includes(activeGroupId ?? "")}
         onManageGroup={
-          (currentUser?.adminGroupIds ?? (currentUser?.devGodMode ? [activeGroupId] : [])).includes(activeGroupId ?? "")
+          adminGroupIds.includes(activeGroupId ?? "")
             ? () => setAccess("admin")
             : undefined
         }
