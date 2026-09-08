@@ -1,93 +1,86 @@
-# PlayUp — especificação de backend
+# PlayUp — backend specification
 
-## Objetivo
+**Portuguese companion:** a concise Portuguese summary is included at the end. English is the source of truth for implementation decisions.
 
-Este documento descreve um backend relacional para os fluxos atuais do PlayUp:
+## Scope
 
-- admins e participantes em vários grupos;
-- convites de grupo para admin ou participante;
-- entrada manual por código de grupo;
-- convites e entrada manual por código de jogo;
-- convidados (*guests*) que só acessam um jogo específico;
-- solicitações, aprovações, lista de espera e saída da lista;
-- notificações fecháveis por admin.
+This document specifies a relational backend for the current PlayUp flow:
 
-**Banco recomendado:** PostgreSQL 15+.
+- one profile can be an admin in one group and a participant in another;
+- group invitations for admins and participants, plus manual group-code entry;
+- game invitations and manual game-code entry;
+- guests who can access only a specific game;
+- access requests, approval, waiting lists, payment state, and self-removal;
+- admin notifications, including payment updates and bulk actions.
 
-Use JSON para o tráfego da API; as relações principais devem ficar em tabelas normalizadas. Isso é essencial para permissões, histórico, notificações e aprovações concorrentes.
+**Recommended database:** PostgreSQL 15+. Use JSON for API transport, but keep permissions, memberships, history, and state transitions normalized in relational tables.
 
----
+## Identity and cross-device access
 
-## Identidade sem e-mail
+~~~text
+First use → name + email → access code sent by email → session
+New device → email + access code → session for the same user
+~~~
 
-Não é necessário usar e-mail agora. Na primeira abertura do app, o backend cria um `user` anônimo e devolve uma sessão de longa duração. O app guarda o token com segurança no dispositivo.
+The access code behaves like a password: only its hash is stored, it is never shown after issuance, and regeneration invalidates the previous code. Until email delivery exists, the prototype may continue to use local browser storage; that is not the production identity model.
 
-```text
-Primeira abertura → POST /sessions/anonymous → user + session token
-Próximas aberturas → token identifica o mesmo user
-```
+## Roles and terms
 
-Limitação assumida: sem login, e-mail ou telefone, o usuário não recupera os grupos/jogos em outro aparelho caso perca o armazenamento local. Mais tarde, uma conta autenticada pode ser vinculada ao mesmo `user_id`, sem alterar o restante do modelo.
-
----
-
-## Papéis e conceitos
-
-| Conceito | Significado |
+| Term | Meaning |
 |---|---|
-| `admin` | Administrador de **um grupo**. Não é um papel global. |
-| `participant` | Membro permanente de um grupo, sem poderes administrativos. |
-| `guest` | Não pertence ao grupo; pode ter acesso somente a um jogo específico. |
-| `player` | Perfil esportivo/nome usado em uma lista de jogo. Não é necessariamente um usuário do app. |
+| admin | Administrator of one group; never a global role. |
+| participant | Permanent group member without administration rights. |
+| guest | Not a group member; may access one approved game only. |
+| player | Sports profile/name on a game list. It may be linked to a user or created by an admin. |
 
-Um usuário pode ser admin no Grupo A, participante no Grupo B e guest no Jogo C.
+A user may be an admin in Group A, a participant in Group B, and a guest in Game C.
 
----
+## Relationship model
 
-## Modelo de relacionamento
-
-```text
+~~~text
 users ──< user_sessions
-  │
   ├──< group_memberships >── groups ──< games
-  │                                │
   ├──< user_game_accesses >────────┘
-  │                                │
   ├──< player_profiles ──< game_participants
-  │                                │
   └──< notification_recipients >── notifications
 
-invites ──> groups ou games
-```
-
----
+invites ──> groups or games
+~~~
 
 ## PostgreSQL DDL
 
-### Extensões e tipos
+### Extensions and enums
 
-```sql
+~~~sql
 create extension if not exists pgcrypto;
+create extension if not exists citext;
 
 create type group_role as enum ('admin', 'participant');
 create type game_status as enum ('active', 'cancelled', 'finished', 'deleted');
 create type game_access_source as enum ('invite', 'manual_code');
 create type game_access_status as enum ('pending', 'approved', 'rejected', 'revoked');
 create type game_participant_status as enum (
-  'confirmed', 'waiting_list', 'leave_requested', 'left', 'removed'
+  'confirmed', 'waiting_list', 'left', 'removed'
 );
 create type invite_type as enum ('group_admin', 'group_participant', 'game_guest');
 create type notification_type as enum (
-  'game_access_requested', 'player_joined', 'player_left'
+  'game_access_requested', 'player_joined', 'player_left', 'payment_status_changed'
 );
-```
+~~~
 
-### Usuários e sessões
+### Users and sessions
 
-```sql
+~~~sql
 create table users (
   id uuid primary key default gen_random_uuid(),
-  display_name text null,
+  display_name text not null check (char_length(trim(display_name)) between 1 and 80),
+  display_name_normalized text generated always as (
+    lower(regexp_replace(trim(display_name), '[[:space:]]+', ' ', 'g'))
+  ) stored,
+  email citext not null unique,
+  email_verified_at timestamptz null,
+  access_code_hash text not null,
+  access_code_updated_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -104,19 +97,17 @@ create table user_sessions (
 );
 
 create index user_sessions_active_idx
-  on user_sessions(user_id)
-  where revoked_at is null;
-```
+  on user_sessions(user_id) where revoked_at is null;
+~~~
 
-O token em texto puro é devolvido apenas uma vez. O banco guarda somente seu hash.
+Session tokens and access codes are accepted or returned only in dedicated flows; the database stores hashes only. Display names may repeat between users, but uniqueness within a group and an active game list is mandatory.
 
-### Grupos e membros
+### Groups and memberships
 
-```sql
+~~~sql
 create table groups (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(name) between 1 and 80),
-  -- Código manual de entrada; guardar hash, pois ele funciona como convite.
   join_code_hash text not null unique,
   join_code_prefix text not null,
   organizer_password_hash text not null,
@@ -137,27 +128,25 @@ create table group_memberships (
   left_at timestamptz null
 );
 
--- Mantém histórico de saída, mas impede duas associações ativas para o mesmo grupo.
 create unique index group_memberships_one_active_idx
-  on group_memberships(group_id, user_id)
-  where left_at is null;
-
+  on group_memberships(group_id, user_id) where left_at is null;
 create index group_memberships_user_active_idx
-  on group_memberships(user_id, group_id)
-  where left_at is null;
-```
+  on group_memberships(user_id, group_id) where left_at is null;
+~~~
 
-`join_code_hash` deve usar Argon2id ou bcrypt. Para procurar um código manual sem armazená-lo em texto puro, envie também um prefixo curto não sensível (por exemplo, os quatro primeiros caracteres) e compare o hash dos candidatos.
+Use Argon2id (preferred) or bcrypt for group codes and organizer passcodes. A short, non-sensitive prefix narrows candidates before comparing hashes.
 
-### Perfis de jogadores
+### Player profiles
 
-```sql
+~~~sql
 create table player_profiles (
   id uuid primary key default gen_random_uuid(),
-  -- Perfil interno de grupo ou perfil próprio de um guest.
   group_id uuid null references groups(id) on delete cascade,
   owner_user_id uuid null references users(id) on delete set null,
   display_name text not null check (char_length(display_name) between 1 and 80),
+  display_name_normalized text generated always as (
+    lower(regexp_replace(trim(display_name), '[[:space:]]+', ' ', 'g'))
+  ) stored,
   level smallint null check (level between 1 and 5),
   mobility text null,
   condition text null,
@@ -166,15 +155,18 @@ create table player_profiles (
   check (group_id is not null or owner_user_id is not null)
 );
 
-create index player_profiles_group_idx on player_profiles(group_id, display_name);
-create index player_profiles_owner_idx on player_profiles(owner_user_id);
-```
+create unique index player_profiles_group_name_unique_idx
+  on player_profiles(group_id, display_name_normalized) where group_id is not null;
+create unique index player_profiles_one_owned_group_profile_idx
+  on player_profiles(group_id, owner_user_id)
+  where group_id is not null and owner_user_id is not null;
+~~~
 
-Perfis de grupo podem existir sem conta vinculada. Um guest aprovado ganha um perfil próprio (`owner_user_id`) e não vê os perfis internos do grupo.
+Group profiles may exist without an account. When a user joins a group, the service creates or links one owned profile in that group; Join then uses it automatically. An approved guest receives an owned profile and cannot browse the group directory.
 
-### Jogos
+### Games and access
 
-```sql
+~~~sql
 create table games (
   id uuid primary key default gen_random_uuid(),
   group_id uuid not null references groups(id) on delete cascade,
@@ -199,16 +191,9 @@ create table games (
 );
 
 create index games_group_active_idx
-  on games(group_id, starts_at)
-  where status = 'active';
+  on games(group_id, starts_at) where status = 'active';
 create index games_join_code_prefix_idx on games(join_code_prefix);
-```
 
-### Acesso de guest a um jogo
-
-Esta tabela alimenta **Meus jogos** para quem não é membro do grupo. Membros de grupo não precisam de registro aqui: seu acesso aos jogos ativos é derivado de `group_memberships`.
-
-```sql
 create table user_game_accesses (
   id uuid primary key default gen_random_uuid(),
   game_id uuid not null references games(id) on delete cascade,
@@ -230,45 +215,43 @@ create table user_game_accesses (
 
 create index user_game_accesses_user_idx
   on user_game_accesses(user_id, status, created_at desc);
-create index user_game_accesses_pending_game_idx
-  on user_game_accesses(game_id, created_at)
-  where status = 'pending';
-```
+~~~
 
-Ao aprovar, o backend cria/reutiliza um `player_profiles` do guest e concede `status = 'approved'`. A aprovação **não** adiciona automaticamente o guest à lista; ela libera a página do jogo para que ele participe usando seu próprio nome.
+This table powers My next games for people who are not group members. Group members derive access from active membership. A guest request creates a pending row; approval creates or reuses the guest profile but does not add them to the game list.
 
-### Lista, espera e saída
+### Game list, waiting list, and payments
 
-```sql
+~~~sql
 create table game_participants (
   id uuid primary key default gen_random_uuid(),
   game_id uuid not null references games(id) on delete cascade,
   player_id uuid not null references player_profiles(id),
   user_id uuid null references users(id) on delete set null,
+  display_name_snapshot text not null check (char_length(trim(display_name_snapshot)) between 1 and 80),
+  display_name_normalized text generated always as (
+    lower(regexp_replace(trim(display_name_snapshot), '[[:space:]]+', ' ', 'g'))
+  ) stored,
   status game_participant_status not null,
   is_paid boolean not null default false,
   joined_at timestamptz not null default now(),
-  leave_requested_at timestamptz null,
   left_at timestamptz null,
   updated_at timestamptz not null default now(),
   unique (game_id, player_id),
-  check (
-    (status = 'leave_requested' and leave_requested_at is not null)
-    or status <> 'leave_requested'
-  )
+  check ((status in ('left', 'removed')) = (left_at is not null))
 );
 
 create index game_participants_game_status_idx
   on game_participants(game_id, status, joined_at);
-create index game_participants_user_idx
-  on game_participants(user_id, game_id);
-```
+create unique index game_participants_active_name_unique_idx
+  on game_participants(game_id, display_name_normalized)
+  where status in ('confirmed', 'waiting_list');
+~~~
 
-Para evitar ultrapassar `max_players`, a operação de entrada deve ser transacional: bloquear a linha do jogo (`SELECT ... FOR UPDATE`), contar confirmados, inserir como `confirmed` ou `waiting_list`, criar a notificação e confirmar a transação.
+Joining must be transactional: lock the game row, count confirmed players, insert as confirmed or waiting_list, create notifications, then commit. A player leaves only their own entry and does so immediately; an admin may remove another player only from game management.
 
-### Convites
+### Invitations and notifications
 
-```sql
+~~~sql
 create table invites (
   id uuid primary key default gen_random_uuid(),
   token_hash text not null unique,
@@ -288,26 +271,11 @@ create table invites (
   )
 );
 
-create index invites_token_prefix_idx on invites(token_prefix);
-create index invites_target_idx on invites(group_id, game_id)
-  where revoked_at is null;
-```
-
-Tipos:
-
-| Tipo | Resultado ao aceitar |
-|---|---|
-| `group_admin` | pede senha; cria membership `admin` |
-| `group_participant` | sem senha; cria membership `participant` |
-| `game_guest` | abre jogo readonly; cria acesso `pending` após o nome |
-
-### Notificações dos admins
-
-```sql
 create table notifications (
   id uuid primary key default gen_random_uuid(),
   group_id uuid not null references groups(id) on delete cascade,
   game_id uuid null references games(id) on delete cascade,
+  game_access_id uuid null references user_game_accesses(id) on delete cascade,
   type notification_type not null,
   actor_user_id uuid null references users(id) on delete set null,
   player_id uuid null references player_profiles(id) on delete set null,
@@ -321,137 +289,119 @@ create table notification_recipients (
   dismissed_at timestamptz null,
   primary key (notification_id, user_id)
 );
+~~~
 
-create index notification_recipients_inbox_idx
-  on notification_recipients(user_id, dismissed_at);
-```
+Every active group admin receives their own recipient row. Dismissing a message affects only that admin. Approve all must approve pending requests in one transaction; dismiss all sets dismissed_at only for the current admin.
 
-Cada admin recebe sua própria linha em `notification_recipients`. Fechar uma mensagem não a fecha para os demais admins.
+## Mandatory business rules
 
----
+1. Creating a group creates an active admin membership for its creator.
+2. Only active group admins may edit groups, games, and players; remove others; or create group invitations.
+3. Active group members may invite a guest to a game they can access.
+4. A group member joins using their linked profile, without approval. A full game places them in the waiting list.
+5. Guests never receive the group directory.
+6. A game code/link creates pending access. The game appears in My next games, but its actions are blocked.
+7. Only a group admin may approve or reject guest access.
+8. Approval grants the guest only that game, never a group membership.
+9. Join, leave, and payment changes notify all active group admins.
+10. A participant may update only their own payment state.
+11. Names are unique, ignoring case and repeated spaces, inside each group and active game list.
+12. Changing a group passcode requires the current passcode and does not invalidate existing memberships.
 
-## Regras de negócio obrigatórias
+## Suggested HTTP API
 
-1. Criar grupo torna o criador `admin` imediatamente.
-2. Apenas admin ativo pode editar grupo, jogo, jogadores ou criar convites de grupo.
-3. Admin e participante ativo podem gerar convite de `game_guest` para um jogo ao qual têm acesso.
-4. Participante que é membro do grupo escolhe um perfil do grupo e entra na lista imediatamente; não há aprovação.
-5. Guest nunca vê os perfis internos do grupo.
-6. Guest por código/link cria `user_game_accesses.status = pending`; o jogo aparece em **Meus jogos**, mas ações ficam bloqueadas.
-7. Somente admin do grupo do jogo aprova ou rejeita guest.
-8. Guest aprovado só pode ver e agir no jogo aprovado; não obtém `group_membership`.
-9. Entradas e saídas efetivadas criam notificação para todos os admins ativos do grupo.
-10. Sair do grupo preenche `left_at`; sair da lista atualiza `game_participants` sem apagar histórico.
-
----
-
-## Rotas/API sugeridas
-
-### Sessão
-
-```text
-POST   /v1/sessions/anonymous
+~~~text
+POST   /v1/auth/start
+POST   /v1/auth/verify
+POST   /v1/me/access-code/regenerate
+GET    /v1/me
+PATCH  /v1/me
 DELETE /v1/sessions/current
-```
 
-### Grupos
-
-```text
-GET    /v1/groups                         # grupos do usuário atual
-POST   /v1/groups                         # cria grupo + membership admin
-POST   /v1/groups/join                    # código + modo admin/participant
+GET    /v1/groups
+POST   /v1/groups
+POST   /v1/groups/join
 GET    /v1/groups/:groupId
+PATCH  /v1/groups/:groupId
 POST   /v1/groups/:groupId/leave
 POST   /v1/groups/:groupId/invites
-```
-
-`POST /v1/groups/join`:
-
-```json
-{
-  "code": "GRP-8KQX6D",
-  "role": "participant"
-}
-```
-
-Para `role = "admin"`, inclua `password`.
-
-### Convites
-
-```text
-GET    /v1/invites/:token                 # dados seguros para mostrar no modal
+GET    /v1/invites/:token
 POST   /v1/invites/:token/accept
-POST   /v1/invites/:token/cancel          # opcional; normalmente só fecha no cliente
-```
 
-### Jogos
-
-```text
 GET    /v1/groups/:groupId/games
 POST   /v1/groups/:groupId/games
 GET    /v1/games/:gameId
-POST   /v1/games/lookup                   # busca por código manual
-GET    /v1/me/games                       # jogos guest pendentes/aprovados + jogos de grupos
+POST   /v1/games/lookup
+GET    /v1/me/games
 POST   /v1/games/:gameId/invites
-```
-
-`POST /v1/games/lookup` devolve somente informações públicas do jogo, sem jogadores internos.
-
-### Acesso de guest e lista
-
-```text
 POST   /v1/games/:gameId/access-requests
 POST   /v1/games/:gameId/access-requests/:requestId/approve
 POST   /v1/games/:gameId/access-requests/:requestId/reject
+POST   /v1/games/:gameId/access-requests/approve-all
 POST   /v1/games/:gameId/participants
-POST   /v1/games/:gameId/participants/:participantId/leave-request
-POST   /v1/games/:gameId/participants/:participantId/approve-leave
-```
-
-### Notificações
-
-```text
+PATCH  /v1/games/:gameId/participants/:participantId/payment
+POST   /v1/games/:gameId/participants/:participantId/leave
+DELETE /v1/games/:gameId/participants/:participantId
 GET    /v1/me/notifications
 POST   /v1/me/notifications/:notificationId/dismiss
-```
+POST   /v1/me/notifications/dismiss-all
+~~~
 
----
+Group join accepts a code and role. Admin mode also requires the current group passcode. Game lookup returns public game information only and must not expose the group player directory to a guest.
 
-## Resposta de permissão para o frontend
+## Temporary local-code convention
 
-O backend deve entregar permissões já calculadas; o frontend não deve inferir regras a partir de IDs.
+These formats exist only in the current local-storage prototype. They are not production-safe tokens and must not expose real IDs after backend implementation.
 
-```json
+| Use | Local prototype | Production |
+|---|---|---|
+| Join a group as participant | PUG-<groupId> | random invite token or hashed group code |
+| Invite a group admin | PUA-ADMIN-<groupId> | random invite token plus group passcode |
+| Open a specific game | PUG-GAME-<groupId>-<gameId> | random invite token or hashed game code |
+
+The frontend currently accepts a code only when it matches an existing local/seeded group or game. The backend will verify hash, expiry, revocation, use limits, and caller permissions.
+
+## Permission response for the frontend
+
+Return calculated permissions; the frontend must not infer authorization from IDs or UI state.
+
+~~~json
 {
-  "game": {
-    "id": "0dccd083-9ca5-41c9-a83d-0c2a56a6705c",
-    "location": "Court 3",
-    "startsAt": "2026-09-12T09:00:00Z",
-    "status": "active"
-  },
+  "game": { "id": "uuid", "location": "Court 3", "status": "active" },
   "viewerAccess": {
     "kind": "guest",
     "status": "pending",
     "canViewDetails": true,
     "canViewGroupPlayers": false,
     "canJoin": false,
-    "canRequestAccess": false,
-    "canRequestLeave": false
+    "canLeave": false,
+    "canUpdateOwnPayment": false
   }
 }
-```
+~~~
 
-Após aprovação, `status` vira `approved`, `canJoin` e `canRequestLeave` viram `true`; `canViewGroupPlayers` permanece `false`.
+After approval, canJoin and canLeave become true while canViewGroupPlayers remains false.
+
+## Security and implementation notes
+
+- Use UUIDs and cryptographically random tokens; never expose sequential database IDs.
+- Store passcodes and tokens only with Argon2id (preferred) or bcrypt hashes.
+- Enforce authorization on the server, never only in the frontend.
+- Support invitation expiry, revocation, and usage limits.
+- Record the admin who approved or rejected each request.
+- Use transactions for joins, leaves, waiting-list promotion, payment state, and auto-cancellation.
+- If Postgres is directly exposed, apply row-level security. With a dedicated API, keep the same rules in the service layer.
 
 ---
 
-## Segurança e implementação
+## Complemento em português
 
-- Use UUIDs e tokens criptograficamente aleatórios; nunca IDs incrementais em links.
-- Armazene senhas e tokens somente como hash (Argon2id preferencialmente).
-- Valide todas as permissões no servidor, nunca apenas no frontend.
-- Convites devem aceitar expiração, revogação e limite de usos.
-- Registre quem aprovou ou rejeitou cada solicitação.
-- Use transações para entrada, saída, lista de espera e cancelamento automático.
-- Adicione RLS (*row-level security*) se usar Supabase/Postgres exposto diretamente; caso use uma API própria, mantenha essas regras na camada de serviço.
+Este documento fica em inglês como referência principal de implementação. Resumo das decisões:
 
+- Cada pessoa terá um perfil com **nome, e-mail e código de acesso** enviado por e-mail; o código pode ser regenerado.
+- Uma pessoa pode ser admin de um grupo e somente participante de outro. Admin não é um papel global.
+- Participante de um grupo entra no jogo com o próprio perfil, sem aprovação. Se estiver cheio, entra na lista de espera.
+- Guest recebe acesso apenas ao jogo convidado: solicita entrada com o nome, fica pendente e só usa as ações do jogo após aprovação de um admin.
+- A pessoa pode sair apenas da própria entrada; admin remove outras pessoas pelo gerenciamento.
+- Nomes não podem repetir dentro de um grupo nem de uma lista ativa de jogo.
+- O protótipo usa códigos locais previsíveis apenas para teste; o backend deverá usar tokens aleatórios hasheados.

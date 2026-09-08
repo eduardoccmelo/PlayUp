@@ -23,7 +23,12 @@ export const availableTimeSlots = Array.from({ length: 68 }, (_, index) => {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 });
 
-export const today = new Date().toLocaleDateString("en-CA");
+const localIsoDate = (date: Date) => {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 10);
+};
+
+export const today = localIsoDate(new Date());
 
 export function normalizeText(value: string) {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();

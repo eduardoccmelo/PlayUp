@@ -36,7 +36,12 @@ export function EventSummary({
   );
 }
 
-export function CompactGameDetails({ game, language }: Omit<EventSummaryProps, "className">) {
+export function CompactGameDetails({
+  game,
+  language,
+  waiting = false,
+  hideEndTime = false,
+}: Omit<EventSummaryProps, "className"> & { waiting?: boolean; hideEndTime?: boolean }) {
   const court = game.courtNumber.trim()
     ? `${localize("Quadra", language)} ${game.courtNumber}`
     : localize("Quadra N/D", language);
@@ -52,15 +57,21 @@ export function CompactGameDetails({ game, language }: Omit<EventSummaryProps, "
         <strong>{game.date.split("-").reverse().join("/")}</strong>{" "}
         (<span className="weekday-name-full">{weekday}</span>
         <span className="weekday-name-short">{shortWeekday}</span>)
+        {waiting && <span aria-label={localize("Lista de espera", language)} className="waiting-game-icon waiting-game-icon-mobile">◷</span>}
       </span>
       <span className="session-detail-location">
         {game.location || localize("Local não informado", language)}
       </span>
       <span className="session-detail-time">
-        {game.time}<span className="session-detail-end-time"> – {game.endTime}</span> ({game.duration} {localize("min", language)})
+        {game.time}
+        {!hideEndTime && <span className="session-detail-end-time"> – {game.endTime}</span>}
+        {" "}({game.duration} {localize("min", language)})
       </span>
       {!game.cancelled && (
-        <span className="session-detail-court">{court}</span>
+        <span className="session-detail-court">
+          {court}
+          {waiting && <span aria-label={localize("Lista de espera", language)} className="waiting-game-icon waiting-game-icon-desktop">◷</span>}
+        </span>
       )}
       {game.cancelled && (
         <span className="session-detail-cancelled">

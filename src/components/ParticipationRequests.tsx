@@ -6,6 +6,8 @@ type ParticipationRequestsProps = {
   games: GameSession[];
   requests: ParticipationRequest[];
   onApprove: (request: ParticipationRequest) => void;
+  onApproveAll: (requests: ParticipationRequest[]) => void;
+  onDismissAll: (requests: ParticipationRequest[]) => void;
   onBack: () => void;
   language: Language;
 };
@@ -36,11 +38,16 @@ export function ParticipationRequests({
   games,
   requests,
   onApprove,
+  onApproveAll,
+  onDismissAll,
   onBack,
   language,
 }: ParticipationRequestsProps) {
-  const joinRequests = requests.filter((request) => request.type !== "leave");
+  const joinRequests = requests.filter(
+    (request) => request.type !== "leave" && request.type !== "payment",
+  );
   const leaveRequests = requests.filter((request) => request.type === "leave");
+  const paymentRequests = requests.filter((request) => request.type === "payment");
   const gameFor = (request: ParticipationRequest) =>
     games.find((game) => game.id === request.gameId);
 
@@ -51,11 +58,14 @@ export function ParticipationRequests({
         <section className="requests-section">
           <div className="requests-section-heading">
             <h1>
-              {localize("Novos", language)} <em>{localize("jogadores.", language)}</em>
+              {localize("Novos", language)} <em>{localize("jogadores", language)}</em>
             </h1>
             <p className="intro">
               {localize("Aprove cada nome para incluí-lo no cadastro geral.", language)}
             </p>
+            <button className="secondary" onClick={() => onApproveAll(joinRequests)}>
+              {localize("Aprovar tudo", language)}
+            </button>
           </div>
           <section className="panel requests-list">
             {joinRequests.map((request) => (
@@ -76,11 +86,14 @@ export function ParticipationRequests({
         <section className="requests-section">
           <div className="requests-section-heading">
             <h1>
-              {localize("Solicitações de", language)} <em>{localize("saída.", language)}</em>
+              {localize("Solicitações de", language)} <em>{localize("saída", language)}</em>
             </h1>
             <p className="intro">
               {localize("Aprove a saída para remover o jogador da lista do jogo.", language)}
             </p>
+            <button className="secondary" onClick={() => onApproveAll(leaveRequests)}>
+              {localize("Aprovar tudo", language)}
+            </button>
           </div>
           <section className="panel requests-list">
             {leaveRequests.map((request) => (
@@ -91,6 +104,38 @@ export function ParticipationRequests({
                 </div>
                 <button className="primary" onClick={() => onApprove(request)}>
                   {localize("Aprovar saída", language)}
+                </button>
+              </article>
+            ))}
+          </section>
+        </section>
+      )}
+      {paymentRequests.length > 0 && (
+        <section className="requests-section">
+          <div className="requests-section-heading">
+            <h1>{localize("Confirmações de", language)} <em>{localize("pagamento", language)}</em></h1>
+            <p className="intro">{localize("Revise os pagamentos informados pelos jogadores.", language)}</p>
+            <button className="secondary" onClick={() => onDismissAll(paymentRequests)}>
+              {localize("Dispensar tudo", language)}
+            </button>
+          </div>
+          <section className="panel requests-list">
+            {paymentRequests.map((request) => (
+              <article className="request-card" key={request.id}>
+                <div>
+                  <strong>{request.name}</strong>
+                  <small className="request-payment-status">
+                    {localize(
+                      request.paymentConfirmed
+                        ? "Pagamento confirmado pelo jogador."
+                        : "Pagamento desmarcado pelo jogador.",
+                      language,
+                    )}
+                  </small>
+                  <RequestGameDetails game={gameFor(request)} language={language} />
+                </div>
+                <button className="primary" onClick={() => onApprove(request)}>
+                  {localize("Marcar como lido", language)}
                 </button>
               </article>
             ))}
