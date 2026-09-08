@@ -4,7 +4,8 @@ import { getStoredValue, saveStoredValue } from "../services/browserStorage";
 export const SEED_GROUP_ID = "seed-dev";
 export const SEED_GROUP_NAME = "Test Group";
 export const SEED_GROUP_PASSCODE = "admin";
-const SEED_VERSION = 3;
+export const PARTICIPANT_SEED_GROUP_ID = "city-night-7f3a";
+const SEED_VERSION = 6;
 
 const players: Player[] = [
   { id: 1, name: "Alex Morgan", level: 5, mobility: "rapido", condition: "boa", position: "ataque" },
@@ -139,6 +140,7 @@ const demoGame = (
   court: string,
   playerIds: number[],
   waitlistIds: number[],
+  maxPlayers = 6,
 ): GameSession => ({
   id,
   date: dateFromToday(days),
@@ -149,7 +151,7 @@ const demoGame = (
   courtNumber: court,
   courtCost: 100,
   currency: "EUR",
-  maxPlayers: 6,
+  maxPlayers,
   minPlayers: 4,
   cancellationHours: 2,
   cancelled: false,
@@ -164,13 +166,13 @@ const demoGame = (
 export const seedGroups = (): PlayerGroup[] => [
   seedGroup(),
   {
-    id: "city-night-7f3a",
+    id: PARTICIPANT_SEED_GROUP_ID,
     name: "City Night Football",
     organizerPasscode: "nightplay",
     createdAt: new Date().toISOString(),
     players: communityPlayers,
     games: [
-      demoGame(201, 2, "Urban Sports Center", "B", [101, 102, 103, 104], [105]),
+      demoGame(201, 2, "Urban Sports Center", "B", [101, 102, 103, 104], [105], 4),
       demoGame(202, 6, "Urban Sports Center", "A", [101, 103, 105, 106], []),
     ],
     requests: [],
@@ -187,18 +189,77 @@ export const seedGroups = (): PlayerGroup[] => [
     ],
     requests: [],
   },
+  {
+    id: "morning-padel-c4d8",
+    name: "Morning Padel",
+    organizerPasscode: "padel",
+    createdAt: new Date().toISOString(),
+    players: [
+      { id: 301, name: "Rafa Torres", level: 4, mobility: "rapido", condition: "boa", position: "ataque" },
+      { id: 302, name: "Sofia Costa", level: 3, mobility: "neutro", condition: "boa", position: "defesa" },
+      { id: 303, name: "Tiago Vale", level: 2, mobility: "lento", condition: "neutro", position: "neutro" },
+      { id: 304, name: "Vera Lopes", level: 5, mobility: "rapido", condition: "boa", position: "goleiro" },
+    ],
+    games: [demoGame(401, 5, "Padel One", "2", [301, 302, 303, 304], [])],
+    requests: [],
+  },
+  {
+    id: "sunset-futsal-e5f1",
+    name: "Sunset Futsal",
+    organizerPasscode: "sunset",
+    createdAt: new Date().toISOString(),
+    players: [
+      { id: 401, name: "Ana Reis", level: 4, mobility: "rapido", condition: "boa", position: "ataque" },
+      { id: 402, name: "Caio Moura", level: 3, mobility: "neutro", condition: "boa", position: "defesa" },
+      { id: 403, name: "Elisa Faria", level: 5, mobility: "rapido", condition: "neutro", position: "goleiro" },
+      { id: 404, name: "João Prado", level: 2, mobility: "lento", condition: "neutro", position: "defesa" },
+    ],
+    games: [demoGame(501, 7, "Sunset Arena", "1", [401, 402, 403, 404], [])],
+    requests: [],
+  },
+  {
+    id: "harbor-football-f6a4",
+    name: "Harbor Football",
+    organizerPasscode: "harbor",
+    createdAt: new Date().toISOString(),
+    players: [
+      { id: 501, name: "Bia Ramos", level: 3, mobility: "rapido", condition: "boa", position: "ataque" },
+      { id: 502, name: "Davi Cruz", level: 4, mobility: "neutro", condition: "boa", position: "defesa" },
+      { id: 503, name: "Gabi Luz", level: 2, mobility: "lento", condition: "neutro", position: "neutro" },
+      { id: 504, name: "Hugo Sá", level: 5, mobility: "rapido", condition: "boa", position: "goleiro" },
+    ],
+    games: [demoGame(601, 10, "Harbor Field", "4", [501, 502, 503, 504], [])],
+    requests: [],
+  },
+  {
+    id: "downtown-futsal-a7b2",
+    name: "Downtown Futsal",
+    organizerPasscode: "downtown",
+    createdAt: new Date().toISOString(),
+    players: [
+      { id: 601, name: "Iara Viana", level: 4, mobility: "rapido", condition: "boa", position: "ataque" },
+      { id: 602, name: "Leandro Paz", level: 3, mobility: "neutro", condition: "neutro", position: "defesa" },
+      { id: 603, name: "Marta Dias", level: 5, mobility: "rapido", condition: "boa", position: "goleiro" },
+      { id: 604, name: "Otávio Reis", level: 2, mobility: "lento", condition: "ruim", position: "defesa" },
+    ],
+    games: [demoGame(701, 12, "Downtown Court", "C", [601, 602, 603, 604], [])],
+    requests: [],
+  },
 ];
 
 export function seedBrowserStorage() {
   const existingGroups = getStoredValue<PlayerGroup[]>("playup.groups.v1", []);
   const storedSeedVersion = getStoredValue<number>("playup.seed-version", 0);
-  const existingSeedGroup = existingGroups.find(
-    (group) => group.id === SEED_GROUP_ID,
+  const refreshedSeeds = seedGroups();
+  const seedIds = new Set(refreshedSeeds.map((group) => group.id));
+  const missingSeedGroup = refreshedSeeds.some(
+    (seed) => !existingGroups.some((group) => group.id === seed.id),
   );
 
-  if (existingSeedGroup && storedSeedVersion < SEED_VERSION) {
-    const refreshedSeeds = seedGroups();
-    const seedIds = new Set(refreshedSeeds.map((group) => group.id));
+  if (
+    existingGroups.length &&
+    (storedSeedVersion < SEED_VERSION || missingSeedGroup)
+  ) {
     saveStoredValue("playup.groups.v1", [
       ...refreshedSeeds,
       ...existingGroups.filter((group) => !seedIds.has(group.id)),
@@ -209,7 +270,7 @@ export function seedBrowserStorage() {
 
   if (existingGroups.length) return;
 
-  saveStoredValue("playup.groups.v1", seedGroups());
+  saveStoredValue("playup.groups.v1", refreshedSeeds);
   saveStoredValue("playup.active-group.v1", SEED_GROUP_ID);
   saveStoredValue("playup.seed-version", SEED_VERSION);
 }

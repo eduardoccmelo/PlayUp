@@ -9,9 +9,10 @@ type MyGamesProps = {
   language: Language;
   onBack: () => void;
   onRequestGame: () => void;
+  onProfile: () => void;
 };
 
-export function MyGames({ games, language, onBack, onRequestGame }: MyGamesProps) {
+export function MyGames({ games, language, onBack, onRequestGame, onProfile }: MyGamesProps) {
   const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
   const [code, setCode] = useState("");
   const submitCode = (event: FormEvent) => {
@@ -24,7 +25,7 @@ export function MyGames({ games, language, onBack, onRequestGame }: MyGamesProps
 
   return (
     <main className="participant-page my-games-page">
-      <Header backLabel={localize("Voltar", language)} onBack={onBack} onHome={onBack} />
+      <Header backLabel={localize("Voltar", language)} onBack={onBack} onHome={onBack} onProfile={onProfile} />
       <section className="hero participant-games-heading">
         <h1>{localize("Meus", language)} <em>{localize("jogos", language)}</em></h1>
         <p className="intro">{localize("Jogos aos quais você foi convidado.", language)}</p>

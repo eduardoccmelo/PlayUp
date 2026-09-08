@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { SEED_GROUP_ID } from "../dev/seeds";
 import { localize, type Language } from "../i18n";
-import type { GameSession, PlayerGroup } from "../types";
-import { normalizeText } from "../utils/game";
-import { groupAdminInviteCode, groupPlayerInviteCode } from "../utils/inviteCodes";
-import { CompactGameDetails } from "./EventSummary";
+import type { CurrentUser, GameSession, PlayerGroup } from "../types";
+import { hasGameEnded, normalizeText, weekdayName } from "../utils/game";
+import {
+  gameInviteCode,
+  groupAdminInviteCode,
+  groupPlayerInviteCode,
+} from "../utils/inviteCodes";
 import { Header } from "./Header";
 
 type GroupAction = {
@@ -20,20 +23,22 @@ type GroupInvite = {
 
 type GroupSelectorProps = {
   groups: PlayerGroup[];
+  user: CurrentUser | null;
   language: Language;
   adminGroupIds: string[];
   onBack: () => void;
+  onProfile: () => void;
   onCreate: (name: string, passcode: string) => void;
   onChoose: (group: PlayerGroup) => void;
-  onManage: (group: PlayerGroup) => void;
   onDelete: (groupId: string) => void;
   onChangePasscode: (groupId: string, passcode: string) => void;
   onRename: (groupId: string, name: string) => void;
   myGames: GameSession[];
-  onJoinGroup: (code: string) => string | null;
+  onJoinGroup: (code: string, passcode: string) => string | null;
   onAddMyGame: (code: string) => string | null;
   onOpenMyGame: (game: GameSession) => void;
   onLeaveMyGame: (game: GameSession) => void;
+  onLeaveGroup: (group: PlayerGroup) => void;
 };
 
 type PasswordFieldProps = {
@@ -45,6 +50,31 @@ type PasswordFieldProps = {
   value: string;
   language: Language;
 };
+
+function MyGameDetails({ game, language }: { game: GameSession; language: Language }) {
+  const weekday = weekdayName(game.date, language === "pt" ? "pt-BR" : "en-GB");
+  const shortWeekday = weekday
+    .slice(0, 3)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const court = game.courtNumber.trim()
+    ? `${localize("Quadra", language)} ${game.courtNumber}`
+    : "";
+
+  return (
+    <div className="my-game-details">
+      <strong>
+        {game.date.split("-").reverse().join("/")} (
+        <span className="weekday-name-full">{weekday}</span>
+        <span className="weekday-name-short">{shortWeekday}</span>) · {game.location || localize("Local não informado", language)}
+      </strong>
+      <small>
+        {game.time} – {game.endTime} ({game.duration} {localize("min", language)})
+        {court && ` · ${court}`}
+      </small>
+    </div>
+  );
+}
 
 function PasswordField({
   autoFocus,
@@ -91,12 +121,13 @@ function PasswordField({
 
 export function GroupSelector({
   groups,
+  user,
   language,
   adminGroupIds,
   onBack,
+  onProfile,
   onCreate,
   onChoose,
-  onManage,
   onDelete,
   onChangePasscode,
   onRename,
@@ -105,11 +136,13 @@ export function GroupSelector({
   onAddMyGame,
   onOpenMyGame,
   onLeaveMyGame,
+  onLeaveGroup,
 }: GroupSelectorProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isAddingGame, setIsAddingGame] = useState(false);
   const [joinCode, setJoinCode] = useState("");
+  const [joinPasscode, setJoinPasscode] = useState("");
   const [gameCode, setGameCode] = useState("");
   const [name, setName] = useState("");
   const [passcode, setPasscode] = useState("");
@@ -127,6 +160,30 @@ export function GroupSelector({
   const [groupError, setGroupError] = useState("");
   const [joinError, setJoinError] = useState("");
   const [gameCodeError, setGameCodeError] = useState("");
+  const memberGroups = groups.filter(
+    (group) =>
+      adminGroupIds.includes(group.id) ||
+      group.players.some(
+        (player) =>
+          player.ownerUserId === user?.id ||
+          (user !== null &&
+            normalizeText(player.name) === normalizeText(user.displayName)),
+      ),
+  );
+  const adminGroupFromCode = groups.find((group) =>
+    normalizeText(joinCode) === normalizeText(groupAdminInviteCode(group)),
+  );
+  const availableGroups = groups
+    .filter((group) => !memberGroups.some((memberGroup) => memberGroup.id === group.id))
+    .slice(0, 5);
+  const availableGames = groups
+    .flatMap((group) => group.games.map((game) => ({ group, game })))
+    .filter(
+      ({ game }) =>
+        !hasGameEnded(game) &&
+        !myGames.some((myGame) => myGame.id === game.id),
+    )
+    .slice(0, 5);
 
   const createGroup = (event: FormEvent) => {
     event.preventDefault();
@@ -148,13 +205,14 @@ export function GroupSelector({
   };
   const joinGroup = (event: FormEvent) => {
     event.preventDefault();
-    const error = onJoinGroup(joinCode);
+    const error = onJoinGroup(joinCode, joinPasscode);
     if (error) {
       setJoinError(error);
       return;
     }
     setIsJoining(false);
     setJoinCode("");
+    setJoinPasscode("");
     setJoinError("");
   };
   const addMyGame = (event: FormEvent) => {
@@ -168,20 +226,7 @@ export function GroupSelector({
     setIsAddingGame(false);
     setGameCodeError("");
   };
-  const openGroupAction = (group: PlayerGroup, type: GroupAction["type"]) => {
-    setCurrentPasscode("");
-    setNewPasscode("");
-    setPasscodeError("");
-    setGroupAction({ group, type, step: "verify" });
-  };
   const closeGroupAction = () => setGroupAction(null);
-  const openRenameDialog = (group: PlayerGroup) => {
-    setGroupError("");
-    setGroupToRename(group);
-    setRenamedGroupName(group.name);
-    setNewPasscode("");
-    setEditCurrentPasscode("");
-  };
   const openGroupInvite = (group: PlayerGroup, canInviteAdmins: boolean) => {
     setInviteCodeCopied(null);
     setGroupInvite({ group, canInviteAdmins });
@@ -197,7 +242,7 @@ export function GroupSelector({
 
   return (
     <main className="app-shell group-selector-page">
-      <Header backLabel={localize("Voltar", language)} onBack={onBack} />
+      <Header backLabel={localize("Voltar", language)} onBack={onBack} onProfile={onProfile} />
       <section className="group-dashboard-section">
         <div className="game-directory-heading group-subsection-heading">
           <h1>
@@ -289,14 +334,41 @@ export function GroupSelector({
                 required
                 placeholder={localize("Código do grupo", language)}
                 value={joinCode}
-                onChange={(event) => { setJoinCode(event.target.value); setJoinError(""); }}
+                onChange={(event) => {
+                  setJoinCode(event.target.value);
+                  setJoinPasscode("");
+                  setJoinError("");
+                }}
               />
+              {adminGroupFromCode && (
+                <>
+                  <PasswordField
+                    autoFocus
+                    language={language}
+                    placeholder={localize("Senha dos organizadores", language)}
+                    value={joinPasscode}
+                    onChange={(value) => {
+                      setJoinPasscode(value);
+                      setJoinError("");
+                    }}
+                  />
+                  <small className="error">
+                    {(language === "pt"
+                      ? "Dica de senha (seed): "
+                      : "Seed passcode hint: ") +
+                      adminGroupFromCode.organizerPasscode}
+                  </small>
+                </>
+              )}
               {joinError && <small className="error">{localize(joinError, language)}</small>}
               <div className="confirm-dialog-actions">
                 <button
                   className="secondary"
                   type="button"
-                  onClick={() => setIsJoining(false)}
+                  onClick={() => {
+                    setJoinPasscode("");
+                    setIsJoining(false);
+                  }}
                 >
                   {localize("Cancelar", language)}
                 </button>
@@ -350,15 +422,23 @@ export function GroupSelector({
 
       <section className="group-dashboard-section">
         <section className="panel group-list">
-          {groups.length ? (
-            groups.map((group) => {
+          {memberGroups.length ? (
+            memberGroups.map((group) => {
             const isAdmin = adminGroupIds.includes(group.id);
             return (
               <article className="group-row" key={group.id}>
                 <div>
                   <div className="group-name-line">
                     <strong>{group.name}</strong>
-                    {isAdmin && <span className="group-admin-badge">Admin</span>}
+                    {isAdmin && (
+                      <span className="group-admin-badge">
+                        <svg aria-hidden="true" viewBox="0 0 24 24">
+                          <path d="M12 3 20 6v5c0 5-3.4 8.1-8 10-4.6-1.9-8-5-8-10V6l8-3Z" />
+                          <path d="M9 12.5 11 14.5l4-4" />
+                        </svg>
+                        Admin
+                      </span>
+                    )}
                   </div>
                   <small>
                     {localize("Código do grupo", language)}: {groupPlayerInviteCode(group)}
@@ -369,52 +449,14 @@ export function GroupSelector({
                     className="session-action-button view"
                     onClick={() => onChoose(group)}
                   >
-                    {localize("Ver jogos", language)}
+                    {localize("Entrar", language)}
                   </button>
-                  {!isAdmin && (
-                    <>
-                      <button
-                        className="primary"
-                        onClick={() => openGroupInvite(group, false)}
-                      >
-                        {localize("Compartilhar", language)}
-                      </button>
-                      <button
-                        className="secondary"
-                        onClick={() => setGroupToLeave(group)}
-                      >
-                        {localize("Sair do grupo", language)}
-                      </button>
-                    </>
-                  )}
-                  {isAdmin && (
-                    <>
-                      <button
-                        className="primary"
-                        onClick={() => onManage(group)}
-                      >
-                        {localize("Gerenciar", language)}
-                      </button>
-                      <button
-                        className="secondary group-edit-button"
-                        onClick={() => openRenameDialog(group)}
-                      >
-                        {localize("Editar", language)}
-                      </button>
-                      <button
-                        className="primary group-share-button"
-                        onClick={() => openGroupInvite(group, true)}
-                      >
-                        {localize("Compartilhar", language)}
-                      </button>
-                      <button
-                        className="session-action-button delete"
-                        onClick={() => openGroupAction(group, "delete")}
-                      >
-                        {localize("Deletar", language)}
-                      </button>
-                    </>
-                  )}
+                  <button
+                    className="primary group-share-button"
+                    onClick={() => openGroupInvite(group, isAdmin)}
+                  >
+                    {localize("Compartilhar", language)}
+                  </button>
                 </div>
               </article>
             );
@@ -424,6 +466,21 @@ export function GroupSelector({
           )}
         </section>
       </section>
+      {availableGroups.length > 0 && (
+        <p className="available-code-copy">
+          <strong>
+            {language === "pt"
+              ? "Outros grupos disponíveis:"
+              : "Other groups available:"}
+          </strong>{" "}
+          {availableGroups.map((group) => (
+            <span key={group.id}>
+              {group.name} — {groupPlayerInviteCode(group)} · Admin:{" "}
+              {groupAdminInviteCode(group)} ({group.organizerPasscode})
+            </span>
+          ))}
+        </p>
+      )}
       {
         <section className="my-games-section">
           <div className="game-directory-heading group-subsection-heading">
@@ -448,15 +505,11 @@ export function GroupSelector({
           </div>
           <section className="panel group-list my-games-list">
             {myGames.length ? (
-              <div className="session-tabs participant-game-list">
+              <div>
                 {myGames.map((game) => (
-                  <div className="session-row guest-game-row" key={game.id}>
-                    <CompactGameDetails
-                      game={game}
-                      hideEndTime
-                      language={language}
-                    />
-                    <div className="session-row-actions">
+                  <article className="group-row my-game-row" key={game.id}>
+                    <MyGameDetails game={game} language={language} />
+                    <div className="group-row-actions">
                       <button
                         className="session-action-button view"
                         onClick={() => onOpenMyGame(game)}
@@ -470,7 +523,7 @@ export function GroupSelector({
                         {localize("Sair da lista", language)}
                       </button>
                     </div>
-                  </div>
+                  </article>
                 ))}
               </div>
             ) : (
@@ -479,6 +532,20 @@ export function GroupSelector({
               </p>
             )}
           </section>
+          {availableGames.length > 0 && (
+            <p className="available-code-copy">
+              <strong>
+                {language === "pt"
+                  ? "Outros jogos disponíveis:"
+                  : "Other games available:"}
+              </strong>{" "}
+              {availableGames.map(({ group, game }) => (
+                <span key={game.id}>
+                  {game.location} — {gameInviteCode(group, game)}
+                </span>
+              ))}
+            </p>
+          )}
         </section>
       }
       {groupToRename && (
@@ -593,7 +660,10 @@ export function GroupSelector({
               </button>
               <button
                 className="session-action-button delete"
-                onClick={() => setGroupToLeave(null)}
+                onClick={() => {
+                  onLeaveGroup(groupToLeave);
+                  setGroupToLeave(null);
+                }}
               >
                 {localize("Sair do grupo", language)}
               </button>

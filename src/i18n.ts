@@ -23,6 +23,7 @@ export const translations: Record<
     "Marcar como lido": "Mark as read",
     "Aprovar tudo": "Approve all",
     "Dispensar tudo": "Dismiss all",
+    "Defina seu perfil para participar.": "Set up your profile to join.",
     "Pagamento confirmado pelo jogador.": "Payment confirmed by the player.",
     "Pagamento desmarcado pelo jogador.": "Payment unchecked by the player.",
     "Jogo salvo": "Saved game",
@@ -86,6 +87,7 @@ export const translations: Record<
     "Editar detalhes do jogo": "Edit game details",
     Editar: "Edit",
     Deletar: "Delete",
+    "Deletar grupo": "Delete group",
     "Excluir jogo": "Delete game",
     Excluir: "Delete",
     Cancelar: "Cancel",
@@ -114,6 +116,7 @@ export const translations: Record<
     "Escolha o ": "Choose the ",
     "Escolha o": "Choose the",
     Participantes: "Participants",
+    pagos: "paid",
     Participar: "Join",
     Participando: "Attending",
     Solicitar: "Request",
@@ -340,6 +343,12 @@ export const translations: Record<
     antes: "before",
     "Balanceamento disponível para jogadores pagos":
       "Team balancing is available for paid players",
+    "Balanceamento disponível apenas quando a lista estiver completa e todos os jogadores pagos.":
+      "Team balancing is available only when the list is full and every player has paid.",
+    Atual: "Current",
+    "O balanceamento será liberado somente quando a lista estiver completa e todos os jogadores estiverem pagos.":
+      "Team balancing will be available only when the list is full and every player has paid.",
+    "Você deseja sair deste grupo?": "Do you want to leave this group?",
     "Cancelar jogo": "Cancel game",
     "Reativar jogo": "Reactivate game",
     CANCELADO: "CANCELLED",

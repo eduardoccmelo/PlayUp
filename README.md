@@ -4,7 +4,7 @@
 
 PlayUp is a web application for organizing group sports games. One profile can manage some groups, participate in others, and keep a separate list of upcoming games.
 
-> This project is currently an MVP. Data and permissions are simulated in browser storage; there is no backend, real authentication, or cross-device synchronization yet.
+> This project is currently an MVP. Data, permissions, and profile recovery are simulated in browser storage. The email/access-code screens are a local UI demo (`123456`); there is no backend, real email delivery, authentication, or cross-device synchronization yet.
 
 ## Contents
 
@@ -40,7 +40,7 @@ PlayUp is a web application for organizing group sports games. One profile can m
 - Approve participant join requests.
 - Add or remove players from an individual game list.
 - Track payment status with a checkbox.
-- Generate and rebalance teams while distributing goalkeepers and other positions fairly.
+- Generate and rebalance teams only when the main list is full and every listed player is paid, while distributing goalkeepers and other positions fairly.
 - See the score used for team balancing; this information is organizer-only.
 
 ### Participants and guests
@@ -78,7 +78,7 @@ Games are displayed in chronological order. For participants, a completed game r
 - The cost per player is calculated only from the main list; waiting-list players do not change the split.
 - Marking a player as paid also confirms them for the game.
 - Paid players are grouped at the top of the list while preserving their relative payment order.
-- Only paid players are eligible for team generation.
+- Team generation is available only when the main list is full and every listed player is paid.
 - A waiting-list player can be included manually in the main list. They take the last pending spot, while the replaced player moves to the waiting list.
 
 ### Languages and interface
@@ -91,7 +91,7 @@ Games are displayed in chronological order. For participants, a completed game r
 
 ## Current prototype flow
 
-1. Set a local profile name on first use.
+1. Create a local profile with name and email, then verify the demo access code. Returning profiles sign in with email and that code; the profile snapshot is restored from the same browser.
 2. Open **My groups** to create a group, join a group, manage groups where you are an admin, or browse groups where you are only a participant.
 3. **My next games** lists only games in which your profile is on the main or waiting list.
 4. Use a local group code to add a group, or a local game code to add a game without joining its group.
@@ -109,7 +109,7 @@ These formats are for UI testing only. Production must use random, revocable ser
 
 ## How to use
 
-1. Set or edit your local profile name.
+1. Create, sign in to, or edit your local profile. The prototype uses `123456` as the access-code demo.
 2. From **My groups**, create/join a group or open its games.
 3. If you are an admin of that group, use **Manage** to create games, maintain players, and process guest requests.
 4. From **My next games**, view a game you are already attending, update your own payment state, or leave the list.
@@ -129,7 +129,7 @@ These formats are for UI testing only. Production must use random, revocable ser
 
 ## Team balancing
 
-PlayUp creates two teams using paid players only. The algorithm considers score, position, and speed, and randomizes the displayed player order so the result does not expose an obvious ranking.
+PlayUp creates two teams only after the main list is full and every listed player is paid. The algorithm considers score, position, and speed, and randomizes the displayed player order so the result does not expose an obvious ranking.
 
 ### Player scores
 
@@ -245,11 +245,11 @@ src/
 
 Data is stored only in the browser's `localStorage`. Consequently:
 
-- groups are not shared automatically between devices;
+- profile snapshots, groups, and games are not shared automatically between devices;
 - clearing browser data can erase local groups;
 - organizer passcodes are not protected by a server;
 - codes are validated only against local and seeded data, not remotely;
-- there are no real accounts, email delivery, passcode recovery, permissions, or audit trail.
+- the profile/email/access-code journey is a local mock: there are no real accounts, email delivery, passcode recovery, server-enforced permissions, or audit trail.
 
 The planned backend model, permissions, API, profile recovery, and secure invite/token strategy are documented in [docs/backend-schema.md](docs/backend-schema.md).
 

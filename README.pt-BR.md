@@ -4,7 +4,7 @@
 
 PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um mesmo perfil pode gerenciar alguns grupos, participar de outros e manter uma lista própria dos próximos jogos.
 
-> O projeto está atualmente em modo MVP. Dados e permissões são simulados no navegador; ainda não há backend, autenticação real nem sincronização entre dispositivos.
+> O projeto está atualmente em modo MVP. Dados, permissões e recuperação de perfil são simulados no navegador. As telas de e-mail/código de acesso são uma demonstração local (`123456`); ainda não há backend, envio real de e-mail, autenticação real nem sincronização entre dispositivos.
 
 ## Índice
 
@@ -41,7 +41,7 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 - Aprovação de solicitações de participação enviadas por participantes.
 - Inclusão e remoção de jogadores da lista de cada jogo.
 - Controle de pagamento por checkbox.
-- Geração e novo balanceamento de times, distribuindo goleiros e outras posições de forma justa.
+- Geração e novo balanceamento de times somente quando a lista principal estiver completa e todos os jogadores da lista estiverem pagos, distribuindo goleiros e outras posições de forma justa.
 - Visualização dos pontos de balanceamento de cada jogador, exclusiva do painel administrativo.
 
 ### Participantes e guests
@@ -79,7 +79,7 @@ Os jogos são ordenados cronologicamente. Para participantes, um jogo encerrado 
 - O valor por pessoa é calculado usando somente os jogadores da lista principal; a lista de espera não altera a divisão do custo.
 - Marcar um jogador como pago também o confirma para o jogo.
 - Jogadores pagos ficam agrupados no topo da lista, preservando a ordem entre os já pagos.
-- Apenas jogadores pagos entram na geração de times.
+- A geração de times fica disponível somente quando a lista principal está completa e todos os jogadores dela estão pagos.
 - Um jogador da lista de espera pode ser incluído manualmente na lista principal. Ele ocupa a última vaga pendente, e o jogador substituído passa para a lista de espera.
 
 ### Idiomas e interface
@@ -92,7 +92,7 @@ Os jogos são ordenados cronologicamente. Para participantes, um jogo encerrado 
 
 ## Fluxo atual do protótipo
 
-1. Defina um nome de perfil local no primeiro uso.
+1. Crie um perfil local com nome e e-mail e confirme o código de demonstração. Perfis existentes entram com e-mail e código; os dados são restaurados no mesmo navegador.
 2. Em **Meus grupos**, crie/entre em grupos, gerencie aqueles em que você é admin ou veja aqueles em que é apenas participante.
 3. **Meus próximos jogos** mostra apenas jogos em que seu perfil está na lista principal ou de espera.
 4. Use um código de grupo para adicionar um grupo ou um código de jogo para adicionar um jogo sem entrar no grupo dele.
@@ -110,7 +110,7 @@ Esses códigos servem somente para testar a interface. Em produção, devem ser 
 
 ## Como usar
 
-1. Defina ou edite seu nome de perfil local.
+1. Crie, entre ou edite seu perfil local. O protótipo usa `123456` como código de acesso de demonstração.
 2. Em **Meus grupos**, crie/entre em um grupo ou abra os jogos dele.
 3. Se você for admin daquele grupo, use **Gerenciar** para criar jogos, manter jogadores e processar solicitações.
 4. Em **Meus próximos jogos**, veja jogos em que você participa, altere seu próprio pagamento ou saia da lista.
@@ -130,7 +130,7 @@ Esses códigos servem somente para testar a interface. Em produção, devem ser 
 
 ## Balanceamento dos times
 
-O PlayUp gera dois times usando somente jogadores pagos. A composição considera pontuação, posição e velocidade, e embaralha a apresentação final dos jogadores para não expor uma hierarquia evidente.
+O PlayUp gera dois times somente depois que a lista principal está completa e todos os jogadores dela estão pagos. A composição considera pontuação, posição e velocidade, e embaralha a apresentação final dos jogadores para não expor uma hierarquia evidente.
 
 ### Pontos de cada jogador
 
@@ -246,11 +246,11 @@ src/
 
 Os dados são salvos apenas no `localStorage` do navegador. Isso significa que:
 
-- grupos não são compartilhados automaticamente com outros dispositivos;
+- snapshots de perfil, grupos e jogos não são compartilhados automaticamente com outros dispositivos;
 - limpar os dados do navegador pode apagar os grupos locais;
 - as senhas dos organizadores não têm proteção de servidor;
 - os códigos são validados somente contra dados locais e seedados;
-- não há contas reais, envio de e-mail, recuperação de código, permissões reais nem auditoria.
+- o fluxo de perfil/e-mail/código é uma simulação local: não há contas reais, envio de e-mail, recuperação de código, permissões aplicadas pelo servidor nem auditoria.
 
 O modelo planejado de backend, permissões, API, recuperação de perfil e convites seguros está em [docs/backend-schema.md](docs/backend-schema.md).
 

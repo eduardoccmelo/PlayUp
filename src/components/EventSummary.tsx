@@ -57,10 +57,17 @@ export function CompactGameDetails({
         <strong>{game.date.split("-").reverse().join("/")}</strong>{" "}
         (<span className="weekday-name-full">{weekday}</span>
         <span className="weekday-name-short">{shortWeekday}</span>)
-        {waiting && <span aria-label={localize("Lista de espera", language)} className="waiting-game-icon waiting-game-icon-mobile">◷</span>}
       </span>
       <span className="session-detail-location">
         {game.location || localize("Local não informado", language)}
+        {waiting && (
+          <span
+            aria-label={localize("Lista de espera", language)}
+            className="waiting-game-icon"
+          >
+            ◷
+          </span>
+        )}
       </span>
       <span className="session-detail-time">
         {game.time}
@@ -70,7 +77,6 @@ export function CompactGameDetails({
       {!game.cancelled && (
         <span className="session-detail-court">
           {court}
-          {waiting && <span aria-label={localize("Lista de espera", language)} className="waiting-game-icon waiting-game-icon-desktop">◷</span>}
         </span>
       )}
       {game.cancelled && (

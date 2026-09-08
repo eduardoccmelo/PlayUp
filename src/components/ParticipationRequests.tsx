@@ -9,6 +9,7 @@ type ParticipationRequestsProps = {
   onApproveAll: (requests: ParticipationRequest[]) => void;
   onDismissAll: (requests: ParticipationRequest[]) => void;
   onBack: () => void;
+  onProfile: () => void;
   language: Language;
 };
 
@@ -41,6 +42,7 @@ export function ParticipationRequests({
   onApproveAll,
   onDismissAll,
   onBack,
+  onProfile,
   language,
 }: ParticipationRequestsProps) {
   const joinRequests = requests.filter(
@@ -53,7 +55,7 @@ export function ParticipationRequests({
 
   return (
     <main className="app-shell requests-page">
-      <Header backLabel={localize("Voltar", language)} onBack={onBack} />
+      <Header backLabel={localize("Voltar", language)} onBack={onBack} onProfile={onProfile} />
       {joinRequests.length > 0 && (
         <section className="requests-section">
           <div className="requests-section-heading">

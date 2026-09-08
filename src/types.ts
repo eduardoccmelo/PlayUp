@@ -7,6 +7,7 @@ export type CurrentUser = {
   email: string;
   emailVerified: boolean;
   adminGroupIds?: string[];
+  leftGroupIds?: string[];
   devGodMode: boolean;
   createdAt: string;
 };

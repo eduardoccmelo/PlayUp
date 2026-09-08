@@ -249,6 +249,36 @@ create unique index game_participants_active_name_unique_idx
 
 Joining must be transactional: lock the game row, count confirmed players, insert as confirmed or waiting_list, create notifications, then commit. A player leaves only their own entry and does so immediately; an admin may remove another player only from game management.
 
+### Team-balance snapshots
+
+~~~sql
+create table game_team_balances (
+  id uuid primary key default gen_random_uuid(),
+  game_id uuid not null references games(id) on delete cascade,
+  generated_by_user_id uuid not null references users(id),
+  algorithm_version text not null,
+  team_a_score numeric(8,2) not null,
+  team_b_score numeric(8,2) not null,
+  generated_at timestamptz not null default now(),
+  invalidated_at timestamptz null
+);
+
+create unique index game_team_balances_one_active_idx
+  on game_team_balances(game_id) where invalidated_at is null;
+
+create table game_team_balance_members (
+  team_balance_id uuid not null references game_team_balances(id) on delete cascade,
+  participant_id uuid not null references game_participants(id) on delete cascade,
+  team_number smallint not null check (team_number in (1, 2)),
+  score_snapshot numeric(8,2) not null,
+  primary key (team_balance_id, participant_id)
+);
+~~~
+
+### Team-balancing guard
+
+Team balancing is available only when an active game's confirmed main list has reached `max_players` and every confirmed participant has `is_paid = true`. Waiting-list entries are excluded. The balancing endpoint must enforce this condition transactionally and return a validation error until it is met. If a listed player leaves or becomes unpaid, invalidate any stored team snapshot; a new balance can be generated only after the condition is restored.
+
 ### Invitations and notifications
 
 ~~~sql
@@ -307,6 +337,7 @@ Every active group admin receives their own recipient row. Dismissing a message 
 10. A participant may update only their own payment state.
 11. Names are unique, ignoring case and repeated spaces, inside each group and active game list.
 12. Changing a group passcode requires the current passcode and does not invalidate existing memberships.
+13. Team balancing may run only when the main list is full and all confirmed main-list participants are paid. Waiting-list participants never count toward this condition.
 
 ## Suggested HTTP API
 
@@ -342,6 +373,7 @@ POST   /v1/games/:gameId/participants
 PATCH  /v1/games/:gameId/participants/:participantId/payment
 POST   /v1/games/:gameId/participants/:participantId/leave
 DELETE /v1/games/:gameId/participants/:participantId
+POST   /v1/games/:gameId/team-balance
 GET    /v1/me/notifications
 POST   /v1/me/notifications/:notificationId/dismiss
 POST   /v1/me/notifications/dismiss-all
@@ -404,4 +436,5 @@ Este documento fica em inglês como referência principal de implementação. Re
 - Guest recebe acesso apenas ao jogo convidado: solicita entrada com o nome, fica pendente e só usa as ações do jogo após aprovação de um admin.
 - A pessoa pode sair apenas da própria entrada; admin remove outras pessoas pelo gerenciamento.
 - Nomes não podem repetir dentro de um grupo nem de uma lista ativa de jogo.
+- O balanceamento só é permitido quando a lista principal atingiu o máximo de jogadores e todos eles estão pagos; lista de espera não entra nesse cálculo.
 - O protótipo usa códigos locais previsíveis apenas para teste; o backend deverá usar tokens aleatórios hasheados.

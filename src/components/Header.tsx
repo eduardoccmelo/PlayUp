@@ -9,11 +9,21 @@ function LogoutIcon() {
   );
 }
 
+function UserIcon() {
+  return (
+    <svg aria-hidden="true" className="header-action-icon" viewBox="0 0 24 24">
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M4.5 20c.9-4 3.3-6 7.5-6s6.6 2 7.5 6" />
+    </svg>
+  );
+}
+
 type HeaderProps = {
   onBack: () => void;
   onHome?: () => void;
   backLabel?: string;
   showBackArrow?: boolean;
+  onProfile?: () => void;
 };
 
 export function Header({
@@ -21,17 +31,30 @@ export function Header({
   onHome,
   backLabel = "Voltar",
   showBackArrow = true,
+  onProfile,
 }: HeaderProps) {
   return (
     <header>
-      <button
-        className={showBackArrow ? "secondary header-back-button" : "exit"}
-        onClick={onBack}
-      >
-        {showBackArrow && <span aria-hidden="true">← </span>}
-        {!showBackArrow && <LogoutIcon />}
-        {backLabel}
-      </button>
+      <div className="header-leading-actions">
+        <button
+          className={showBackArrow ? "secondary header-back-button" : "exit"}
+          onClick={onBack}
+        >
+          {showBackArrow && <span aria-hidden="true">← </span>}
+          {!showBackArrow && <LogoutIcon />}
+          {backLabel}
+        </button>
+        {onProfile && (
+          <button
+            aria-label="User settings"
+            className="secondary header-profile-button"
+            onClick={onProfile}
+            type="button"
+          >
+            <UserIcon />
+          </button>
+        )}
+      </div>
       <a
         className="logo"
         href="#"
