@@ -7,12 +7,13 @@ import { Header } from "./Header";
 type MyGamesProps = {
   games: GameSession[];
   language: Language;
+  onLanguageChange: (language: Language) => void;
   onBack: () => void;
   onRequestGame: () => void;
   onProfile: () => void;
 };
 
-export function MyGames({ games, language, onBack, onRequestGame, onProfile }: MyGamesProps) {
+export function MyGames({ games, language, onLanguageChange, onBack, onRequestGame, onProfile }: MyGamesProps) {
   const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
   const [code, setCode] = useState("");
   const submitCode = (event: FormEvent) => {
@@ -25,7 +26,7 @@ export function MyGames({ games, language, onBack, onRequestGame, onProfile }: M
 
   return (
     <main className="participant-page my-games-page">
-      <Header backLabel={localize("Voltar", language)} onBack={onBack} onHome={onBack} onProfile={onProfile} />
+      <Header backLabel={localize("Voltar", language)} onBack={onBack} onHome={onBack} onProfile={onProfile} language={language} onLanguageChange={onLanguageChange} />
       <section className="hero participant-games-heading">
         <h1>{localize("Meus", language)} <em>{localize("jogos", language)}</em></h1>
         <p className="intro">{localize("Jogos aos quais você foi convidado.", language)}</p>

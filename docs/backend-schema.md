@@ -143,6 +143,7 @@ create table player_profiles (
   id uuid primary key default gen_random_uuid(),
   group_id uuid null references groups(id) on delete cascade,
   owner_user_id uuid null references users(id) on delete set null,
+  is_guest boolean not null default false,
   display_name text not null check (char_length(display_name) between 1 and 80),
   display_name_normalized text generated always as (
     lower(regexp_replace(trim(display_name), '[[:space:]]+', ' ', 'g'))
@@ -162,7 +163,7 @@ create unique index player_profiles_one_owned_group_profile_idx
   where group_id is not null and owner_user_id is not null;
 ~~~
 
-Group profiles may exist without an account. When a user joins a group, the service creates or links one owned profile in that group; Join then uses it automatically. An approved guest receives an owned profile and cannot browse the group directory.
+Group profiles may exist without an account. `is_guest = true` identifies a manually created/admin-managed player with no linked user account. When a user joins a group, the service creates or links one owned profile in that group; Join then uses it automatically. An approved guest receives an owned profile and cannot browse the group directory.
 
 ### Games and access
 
@@ -249,6 +250,22 @@ create unique index game_participants_active_name_unique_idx
 
 Joining must be transactional: lock the game row, count confirmed players, insert as confirmed or waiting_list, create notifications, then commit. A player leaves only their own entry and does so immediately; an admin may remove another player only from game management.
 
+### Participation statistics
+
+The statistics screen must count a participation only once a non-cancelled game transitions to `finished`, using its confirmed main-list participants. Keep a denormalized counter for fast group-level reads; the game-participant rows remain the source of truth and can rebuild the counter if necessary.
+
+~~~sql
+create table player_participation_stats (
+  group_id uuid not null references groups(id) on delete cascade,
+  player_id uuid not null references player_profiles(id) on delete cascade,
+  participation_count integer not null default 0 check (participation_count >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (group_id, player_id)
+);
+~~~
+
+When a game is marked `finished`, lock it and insert/upsert one row per confirmed participant, incrementing `participation_count` exactly once. Store a completion marker or enforce the transition in the same transaction so retries cannot double-count. `GET /v1/groups/:groupId/statistics` returns total games, active games, and players ordered by `participation_count DESC`.
+
 ### Team-balance snapshots
 
 ~~~sql
@@ -277,7 +294,7 @@ create table game_team_balance_members (
 
 ### Team-balancing guard
 
-Team balancing is available only when an active game's confirmed main list has reached `max_players` and every confirmed participant has `is_paid = true`. Waiting-list entries are excluded. The balancing endpoint must enforce this condition transactionally and return a validation error until it is met. If a listed player leaves or becomes unpaid, invalidate any stored team snapshot; a new balance can be generated only after the condition is restored.
+Manual team balancing is available with at least two paid confirmed participants; unpaid and waiting-list entries are always excluded. When the main list reaches `max_players` and every confirmed participant is paid, generate a balance automatically. If a listed player leaves or becomes unpaid, invalidate any stored team snapshot. A rebalance creates a new snapshot and must prefer a different comparably fair member split when one exists; merely swapping Team A and Team B is not a new balance.
 
 ### Invitations and notifications
 
@@ -337,7 +354,8 @@ Every active group admin receives their own recipient row. Dismissing a message 
 10. A participant may update only their own payment state.
 11. Names are unique, ignoring case and repeated spaces, inside each group and active game list.
 12. Changing a group passcode requires the current passcode and does not invalidate existing memberships.
-13. Team balancing may run only when the main list is full and all confirmed main-list participants are paid. Waiting-list participants never count toward this condition.
+13. Team balancing includes only paid confirmed main-list participants; waiting-list and unpaid participants never count. At least two paid participants are required for a manual balance; a full, fully paid list balances automatically.
+14. Finished games are immutable to both admins and participants except for deletion by an authorized admin. Their API representation is read-only and may include the latest valid team-balance snapshot.
 
 ## Suggested HTTP API
 
@@ -374,6 +392,7 @@ PATCH  /v1/games/:gameId/participants/:participantId/payment
 POST   /v1/games/:gameId/participants/:participantId/leave
 DELETE /v1/games/:gameId/participants/:participantId
 POST   /v1/games/:gameId/team-balance
+GET    /v1/groups/:groupId/statistics
 GET    /v1/me/notifications
 POST   /v1/me/notifications/:notificationId/dismiss
 POST   /v1/me/notifications/dismiss-all
@@ -436,5 +455,6 @@ Este documento fica em inglês como referência principal de implementação. Re
 - Guest recebe acesso apenas ao jogo convidado: solicita entrada com o nome, fica pendente e só usa as ações do jogo após aprovação de um admin.
 - A pessoa pode sair apenas da própria entrada; admin remove outras pessoas pelo gerenciamento.
 - Nomes não podem repetir dentro de um grupo nem de uma lista ativa de jogo.
-- O balanceamento só é permitido quando a lista principal atingiu o máximo de jogadores e todos eles estão pagos; lista de espera não entra nesse cálculo.
+- O balanceamento manual exige pelo menos dois jogadores pagos da lista principal; com lista cheia e todos pagos, os times são gerados automaticamente. Jogadores não pagos e da lista de espera não entram no cálculo. Novo balanceamento deve mudar a composição quando existir alternativa justa, e não apenas trocar os times de lado.
+- Jogos finalizados são somente leitura para admins e participantes; a API pode exibir o último snapshot válido dos times.
 - O protótipo usa códigos locais previsíveis apenas para teste; o backend deverá usar tokens aleatórios hasheados.

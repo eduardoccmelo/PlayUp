@@ -40,7 +40,8 @@ PlayUp is a web application for organizing group sports games. One profile can m
 - Approve participant join requests.
 - Add or remove players from an individual game list.
 - Track payment status with a checkbox.
-- Generate and rebalance teams only when the main list is full and every listed player is paid, while distributing goalkeepers and other positions fairly.
+- View group statistics: total games, active games, and completed-game participations per player.
+- Generate teams manually with at least two paid players, or automatically when the main list is full and every listed player is paid. Rebalancing selects a different comparably fair split when one exists.
 - See the score used for team balancing; this information is organizer-only.
 
 ### Participants and guests
@@ -68,7 +69,7 @@ Every game includes:
 - payment details; and
 - an optional player notice of up to 100 characters.
 
-Games are displayed in chronological order. For participants, a completed game remains visible in a disabled, read-only state for 24 hours. It disappears afterwards, while organizers can still view it until they delete it manually.
+Games are displayed in chronological order. A completed game always uses the same read-only layout for participants and organizers, including an existing team-balance snapshot. For participants it remains visible for 24 hours; organizers can continue to view or delete it manually.
 
 ### Lists and payments
 
@@ -78,7 +79,7 @@ Games are displayed in chronological order. For participants, a completed game r
 - The cost per player is calculated only from the main list; waiting-list players do not change the split.
 - Marking a player as paid also confirms them for the game.
 - Paid players are grouped at the top of the list while preserving their relative payment order.
-- Team generation is available only when the main list is full and every listed player is paid.
+- Manual team generation is available with at least two paid main-list players. A full, fully paid main list generates teams automatically.
 - A waiting-list player can be included manually in the main list. They take the last pending spot, while the replaced player moves to the waiting list.
 
 ### Languages and interface
@@ -129,7 +130,7 @@ These formats are for UI testing only. Production must use random, revocable ser
 
 ## Team balancing
 
-PlayUp creates two teams only after the main list is full and every listed player is paid. The algorithm considers score, position, and speed, and randomizes the displayed player order so the result does not expose an obvious ranking.
+PlayUp can manually create two teams from at least two paid main-list players. When the main list is full and every listed player is paid, teams are generated automatically. The algorithm considers score, position, and speed; a rebalance chooses a different comparably fair split when one is available.
 
 ### Player scores
 

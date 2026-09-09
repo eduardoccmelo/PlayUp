@@ -89,14 +89,32 @@ const splitsGoalkeepers = (
   (count(teamA, (player) => positionOf(player) === "goleiro") > 0 &&
     count(teamB, (player) => positionOf(player) === "goleiro") > 0);
 
-export function generateBalancedTeams(players: Player[]): BalancedTeams {
+type TeamCandidate = {
+  teamA: Player[];
+  teamB: Player[];
+  balance: Balance;
+};
+
+const hasSameMembers = (first: Player[], second: Player[]) =>
+  first.length === second.length &&
+  first.every((player) => second.some((candidate) => candidate.id === player.id));
+
+const isSameSplit = (candidate: TeamCandidate, previous: BalancedTeams) =>
+  (hasSameMembers(candidate.teamA, previous.teamA) &&
+    hasSameMembers(candidate.teamB, previous.teamB)) ||
+  (hasSameMembers(candidate.teamA, previous.teamB) &&
+    hasSameMembers(candidate.teamB, previous.teamA));
+
+export function generateBalancedTeams(
+  players: Player[],
+  previousTeams?: BalancedTeams | null,
+): BalancedTeams {
   const teamASize = Math.ceil(players.length / 2);
   const totalGoalkeepers = count(
     players,
     (player) => positionOf(player) === "goleiro",
   );
-  let bestTeamA: Player[] | null = null;
-  let bestBalance: Balance | null = null;
+  const candidates: TeamCandidate[] = [];
 
   // Games are normally small (10–12 players). Evaluating every valid split
   // prevents a later random swap from putting both goalkeepers on one team.
@@ -107,11 +125,7 @@ export function generateBalancedTeams(players: Player[]): BalancedTeams {
       const teamB = players.filter((_, index) => !selected.has(index));
       if (!splitsGoalkeepers(teamA, teamB, totalGoalkeepers)) return;
 
-      const nextBalance = balanceOf(teamA, teamB);
-      if (!bestBalance || compareBalance(nextBalance, bestBalance) < 0) {
-        bestBalance = nextBalance;
-        bestTeamA = teamA;
-      }
+      candidates.push({ teamA, teamB, balance: balanceOf(teamA, teamB) });
       return;
     }
 
@@ -127,14 +141,37 @@ export function generateBalancedTeams(players: Player[]): BalancedTeams {
 
   evaluate([], 0);
 
-  const teamA = bestTeamA ?? players.slice(0, teamASize);
+  const rankedCandidates = candidates.sort((first, second) =>
+    compareBalance(first.balance, second.balance),
+  );
+  const bestCandidate = rankedCandidates[0];
+  // A re-balance should create a genuinely new split when a comparably fair
+  // option exists. Inverting Team A/Team B alone is deliberately excluded.
+  const comparableAlternatives = previousTeams && bestCandidate
+    ? rankedCandidates.filter(
+        (candidate) =>
+          !isSameSplit(candidate, previousTeams) &&
+          candidate.balance.positionDifference ===
+            bestCandidate.balance.positionDifference &&
+          candidate.balance.scoreDifference <=
+            bestCandidate.balance.scoreDifference + 1.5 &&
+          candidate.balance.attributeDifference <=
+            bestCandidate.balance.attributeDifference + 2,
+      )
+    : [];
+  const selectedCandidate = comparableAlternatives.length
+    ? comparableAlternatives[
+        Math.floor(Math.random() * comparableAlternatives.length)
+      ]
+    : bestCandidate;
+  const teamA = selectedCandidate?.teamA ?? players.slice(0, teamASize);
   const selected = new Set(teamA);
   const teamB = players.filter((player) => !selected.has(player));
 
   return {
     teamA,
     teamB,
-    sumA: score(teamA),
-    sumB: score(teamB),
+    sumA: selectedCandidate ? score(selectedCandidate.teamA) : score(teamA),
+    sumB: selectedCandidate ? score(selectedCandidate.teamB) : score(teamB),
   };
 }

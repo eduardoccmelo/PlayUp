@@ -1,4 +1,5 @@
 import playUpIcon from "../assets/playup-icon.png";
+import type { Language } from "../i18n";
 
 function LogoutIcon() {
   return (
@@ -24,6 +25,8 @@ type HeaderProps = {
   backLabel?: string;
   showBackArrow?: boolean;
   onProfile?: () => void;
+  language?: Language;
+  onLanguageChange?: (language: Language) => void;
 };
 
 export function Header({
@@ -32,6 +35,8 @@ export function Header({
   backLabel = "Voltar",
   showBackArrow = true,
   onProfile,
+  language,
+  onLanguageChange,
 }: HeaderProps) {
   return (
     <header>
@@ -44,6 +49,26 @@ export function Header({
           {!showBackArrow && <LogoutIcon />}
           {backLabel}
         </button>
+        {language && onLanguageChange && (
+          <div className="language-switch header-language-switch">
+            <button
+              aria-label="Português"
+              className={language === "pt" ? "selected" : ""}
+              onClick={() => onLanguageChange("pt")}
+              type="button"
+            >
+              🇧🇷
+            </button>
+            <button
+              aria-label="English"
+              className={language === "en" ? "selected" : ""}
+              onClick={() => onLanguageChange("en")}
+              type="button"
+            >
+              🇬🇧
+            </button>
+          </div>
+        )}
         {onProfile && (
           <button
             aria-label="User settings"

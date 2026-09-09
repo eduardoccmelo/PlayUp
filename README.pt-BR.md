@@ -41,7 +41,8 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 - Aprovação de solicitações de participação enviadas por participantes.
 - Inclusão e remoção de jogadores da lista de cada jogo.
 - Controle de pagamento por checkbox.
-- Geração e novo balanceamento de times somente quando a lista principal estiver completa e todos os jogadores da lista estiverem pagos, distribuindo goleiros e outras posições de forma justa.
+- Estatísticas do grupo: total de jogos, jogos ativos e participações de cada jogador em jogos concluídos.
+- Geração manual de times com pelo menos dois jogadores pagos, ou automática quando a lista principal estiver completa e todos estiverem pagos. Um novo balanceamento escolhe uma divisão diferente e comparavelmente justa quando houver alternativa.
 - Visualização dos pontos de balanceamento de cada jogador, exclusiva do painel administrativo.
 
 ### Participantes e guests
@@ -69,7 +70,7 @@ Cada jogo possui:
 - informações de pagamento;
 - aviso opcional aos participantes, com até 100 caracteres.
 
-Os jogos são ordenados cronologicamente. Para participantes, um jogo encerrado permanece visível por até 24 horas, em estado desabilitado e somente leitura. Depois desse período, deixa de aparecer para participantes, mas continua disponível para organizadores até ser excluído manualmente.
+Os jogos são ordenados cronologicamente. Um jogo encerrado sempre usa o mesmo layout somente leitura para participantes e admins, inclusive com os times já gerados. Para participantes, permanece visível por até 24 horas; admins continuam podendo visualizá-lo ou excluí-lo manualmente.
 
 ### Listas e pagamentos
 
@@ -79,7 +80,7 @@ Os jogos são ordenados cronologicamente. Para participantes, um jogo encerrado 
 - O valor por pessoa é calculado usando somente os jogadores da lista principal; a lista de espera não altera a divisão do custo.
 - Marcar um jogador como pago também o confirma para o jogo.
 - Jogadores pagos ficam agrupados no topo da lista, preservando a ordem entre os já pagos.
-- A geração de times fica disponível somente quando a lista principal está completa e todos os jogadores dela estão pagos.
+- A geração manual de times fica disponível com pelo menos dois jogadores pagos da lista principal. Com lista completa e todos pagos, os times são gerados automaticamente.
 - Um jogador da lista de espera pode ser incluído manualmente na lista principal. Ele ocupa a última vaga pendente, e o jogador substituído passa para a lista de espera.
 
 ### Idiomas e interface
@@ -130,7 +131,7 @@ Esses códigos servem somente para testar a interface. Em produção, devem ser 
 
 ## Balanceamento dos times
 
-O PlayUp gera dois times somente depois que a lista principal está completa e todos os jogadores dela estão pagos. A composição considera pontuação, posição e velocidade, e embaralha a apresentação final dos jogadores para não expor uma hierarquia evidente.
+O PlayUp gera manualmente dois times a partir de dois jogadores pagos da lista principal. Com lista completa e todos pagos, os times são gerados automaticamente. A composição considera pontuação, posição e velocidade; ao balancear novamente, uma divisão diferente e comparavelmente justa é escolhida quando houver alternativa.
 
 ### Pontos de cada jogador
 

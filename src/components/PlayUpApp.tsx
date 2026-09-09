@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import {
   generateBalancedTeams,
@@ -20,13 +20,14 @@ import { GameForm } from "./GameForm";
 import { Header } from "./Header";
 import { Teams } from "./Teams";
 import { ParticipationRequests } from "./ParticipationRequests";
-import { ReadOnlyGame } from "./ReadOnlyGame";
 import { LandingPage } from "./LandingPage";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PlayerDirectoryManager } from "./PlayerDirectoryManager";
 import { GroupSelector } from "./GroupSelector";
 import { CompactGameDetails, EventSummary } from "./EventSummary";
 import { MyGames } from "./MyGames";
+import { GroupStatistics } from "./GroupStatistics";
+import { ReadOnlyGame } from "./ReadOnlyGame";
 import {
   compareGameStartTime as chronological,
   currencySymbol,
@@ -137,7 +138,7 @@ export function PlayUpApp() {
   useEffect(() => {
     localizePage(language);
   });
-  const [access, setAccess] = useState<"home" | "groups" | "admin" | "player" | "my-games">(
+  const [access, setAccess] = useState<"home" | "groups" | "admin" | "player" | "my-games" | "statistics">(
     "home",
   );
   const [groups, setGroups] = useLocalStorage<PlayerGroup[]>(
@@ -347,6 +348,7 @@ export function PlayUpApp() {
   const game = games.find((g) => g.id === gameId) ?? null;
   const [gameForm, setGameForm] = useState(emptyGame);
   const [editGame, setEditGame] = useState<number | null>(null);
+  const [keepGameOpenAfterEdit, setKeepGameOpenAfterEdit] = useState(false);
   const [isGameCreationOpen, setIsGameCreationOpen] = useState(false);
   const [playerForm, setPlayerForm] = useState(emptyPlayer);
   const [editPlayer, setEditPlayer] = useState<number | null>(null);
@@ -433,22 +435,36 @@ export function PlayUpApp() {
     : [];
   const saveGames = (next: GameSession[]) => setGames(next);
   const refreshTeams = useCallback(
-    (gameSession: GameSession, _allPlayers = noPlayers): GameSession => ({
-      ...gameSession,
-      teams: null,
-    }),
+    (gameSession: GameSession, allPlayers = noPlayers): GameSession => {
+      const listedPlayers = gameSession.playerIds
+        .map((playerId) => allPlayers.find((player) => player.id === playerId))
+        .filter((player): player is Player => Boolean(player));
+      const shouldBalanceAutomatically =
+        isGameReadyForBalancing(gameSession) &&
+        listedPlayers.length === gameSession.playerIds.length;
+
+      return {
+        ...gameSession,
+        teams:
+          shouldBalanceAutomatically && listedPlayers.length >= 2
+            ? generateBalancedTeams(listedPlayers)
+            : null,
+      };
+    },
     [],
   );
   useEffect(() => {
-    const gamesWithValidTeams = games.map((gameSession) =>
-      gameSession.teams && !isGameReadyForBalancing(gameSession)
-        ? { ...gameSession, teams: null }
-        : gameSession,
-    );
+    const gamesWithValidTeams = games.map((gameSession) => {
+      if (isGameReadyForBalancing(gameSession) && !gameSession.teams)
+        return refreshTeams(gameSession, players);
+      if (gameSession.teams && gameSession.playerIds.length < 2)
+        return { ...gameSession, teams: null };
+      return gameSession;
+    });
     if (gamesWithValidTeams.some((gameSession, index) => gameSession !== games[index])) {
       setGames(gamesWithValidTeams);
     }
-  }, [games, setGames]);
+  }, [games, players, refreshTeams, setGames]);
   const fillOpenSpots = useCallback((gameSession: GameSession) => {
     const playersToPromote = gameSession.waitlistIds.slice(
       0,
@@ -487,7 +503,7 @@ export function PlayUpApp() {
         !samePlayerIds(previousGame.paidPlayerIds, gameSession.paidPlayerIds));
     const refreshedGame =
       shouldRefreshTeams && rosterOrPaymentChanged
-        ? refreshTeams(gameSession)
+        ? refreshTeams(gameSession, players)
         : gameSession;
     if (refreshedGame.teams) setBalanceNotice("");
     saveGames(
@@ -565,19 +581,23 @@ export function PlayUpApp() {
       const old = games.find((g) => g.id === editGame)!;
       const active = old.playerIds.slice(0, gameForm.maxPlayers);
       const overflow = old.playerIds.slice(gameForm.maxPlayers);
-      const updatedGame = refreshTeams({
-        ...old,
-        ...gameForm,
-        endTime,
-        duration: gameForm.duration,
-        courtCost: +gameForm.courtCost,
-        maxPlayers: +gameForm.maxPlayers,
-        playerIds: active,
-        waitlistIds: [...overflow, ...old.waitlistIds],
-        paidPlayerIds: old.paidPlayerIds.filter((x) => active.includes(x)),
-      });
+      const updatedGame = refreshTeams(
+        {
+          ...old,
+          ...gameForm,
+          endTime,
+          duration: gameForm.duration,
+          courtCost: +gameForm.courtCost,
+          maxPlayers: +gameForm.maxPlayers,
+          playerIds: active,
+          waitlistIds: [...overflow, ...old.waitlistIds],
+          paidPlayerIds: old.paidPlayerIds.filter((x) => active.includes(x)),
+        },
+        players,
+      );
       updateGame(updatedGame);
-      setGameId(null);
+      setGameId(keepGameOpenAfterEdit ? old.id : null);
+      setKeepGameOpenAfterEdit(false);
       setNotice("Jogo atualizado.");
     } else {
       const g: GameSession = {
@@ -649,6 +669,9 @@ export function PlayUpApp() {
               normalizeText(name) === normalizeText(currentUser.displayName)
                 ? currentUser.id
                 : undefined,
+            isGuest:
+              !currentUser ||
+              normalizeText(name) !== normalizeText(currentUser.displayName),
           },
         ];
     setPlayers(next);
@@ -984,12 +1007,93 @@ export function PlayUpApp() {
       ids.filter((id) => !groupToLeave.games.some((gameSession) => gameSession.id === id)),
     );
   };
+  const saveProfile = (
+    { displayName, email }: Pick<CurrentUser, "displayName" | "email">,
+    mode: "sign-in" | "sign-up",
+  ) => {
+    const savedProfile = savedProfiles[email];
+    if (mode === "sign-in") {
+      if (!savedProfile) return "Nenhum perfil encontrado para este e-mail.";
+      setGroups(savedProfile.groups);
+      setGuestGameIds(savedProfile.guestGameIds);
+      setCurrentUser(savedProfile.user);
+      return null;
+    }
+    if (!currentUser && savedProfile) {
+      setGroups(savedProfile.groups);
+      setGuestGameIds(savedProfile.guestGameIds);
+      setCurrentUser(savedProfile.user);
+      return null;
+    }
+    const userId = currentUser?.id ?? createGroupId();
+    const hasDuplicate = groups.some((group) =>
+      group.players.some(
+        (player) =>
+          player.ownerUserId !== userId &&
+          normalizeText(player.name) === normalizeText(displayName),
+      ),
+    );
+    if (hasDuplicate) return "Esse nome já está na lista.";
+    setGroups((currentGroups) =>
+      currentGroups.map((group) => ({
+        ...group,
+        players: group.players.map((player) =>
+          player.ownerUserId === userId ? { ...player, name: displayName } : player,
+        ),
+      })),
+    );
+    setCurrentUser((user) =>
+      user
+        ? { ...user, displayName, email, emailVerified: true }
+        : {
+            id: userId,
+            displayName,
+            email,
+            emailVerified: true,
+            adminGroupIds: [],
+            devGodMode: false,
+            createdAt: new Date().toISOString(),
+          },
+    );
+    return null;
+  };
+  const logout = () => {
+    if (currentUser) {
+      setSavedProfiles((profiles) => ({
+        ...profiles,
+        [currentUser.email]: { user: currentUser, groups, guestGameIds },
+      }));
+    }
+    setCurrentUser(null);
+    setGroups(seedGroups());
+    setGuestGameIds([]);
+    setActiveGroupId(null);
+    setGameId(null);
+    setAccess("home");
+  };
+  const withProfile = (page: ReactNode) => (
+    <>
+      {page}
+      <LandingPage
+        profileOnly
+        language={language}
+        user={currentUser}
+        openProfile={profileRequested}
+        onProfileOpened={() => setProfileRequested(false)}
+        onSaveUser={saveProfile}
+        onLogout={logout}
+        onLanguageChange={setLanguage}
+        onEnter={() => undefined}
+      />
+    </>
+  );
   if (access === "groups")
-    return (
+    return withProfile(
       <GroupSelector
         groups={groups}
         user={currentUser}
         language={language}
+        onLanguageChange={setLanguage}
         adminGroupIds={adminGroupIds}
         onBack={() => {
           setActiveGroupId(null);
@@ -997,7 +1101,6 @@ export function PlayUpApp() {
         }}
         onProfile={() => {
           setProfileRequested(true);
-          setAccess("home");
         }}
         onCreate={(name, organizerPasscode) => {
           const group: PlayerGroup = {
@@ -1196,75 +1299,13 @@ export function PlayUpApp() {
       />
     );
   if (access === "home")
-    return (
+    return withProfile(
       <LandingPage
         language={language}
         user={currentUser}
-        openProfile={profileRequested}
-        onProfileOpened={() => setProfileRequested(false)}
-        onSaveUser={({ displayName, email }, mode) => {
-          const savedProfile = savedProfiles[email];
-          if (mode === "sign-in") {
-            if (!savedProfile) return "Nenhum perfil encontrado para este e-mail.";
-            setGroups(savedProfile.groups);
-            setGuestGameIds(savedProfile.guestGameIds);
-            setCurrentUser(savedProfile.user);
-            return null;
-          }
-          if (!currentUser && savedProfile) {
-            setGroups(savedProfile.groups);
-            setGuestGameIds(savedProfile.guestGameIds);
-            setCurrentUser(savedProfile.user);
-            return null;
-          }
-          const userId = currentUser?.id ?? createGroupId();
-          const hasDuplicate = groups.some((group) =>
-            group.players.some(
-              (player) =>
-                player.ownerUserId !== userId &&
-                normalizeText(player.name) === normalizeText(displayName),
-            ),
-          );
-          if (hasDuplicate) return "Esse nome já está na lista.";
-          setGroups((currentGroups) =>
-            currentGroups.map((group) => ({
-              ...group,
-              players: group.players.map((player) =>
-                player.ownerUserId === userId
-                  ? { ...player, name: displayName }
-                  : player,
-              ),
-            })),
-          );
-          setCurrentUser((user) =>
-            user
-              ? { ...user, displayName, email, emailVerified: true }
-              : {
-                  id: userId,
-                  displayName,
-                  email,
-                  emailVerified: true,
-                  adminGroupIds: [],
-                  devGodMode: false,
-                  createdAt: new Date().toISOString(),
-                },
-          );
-          return null;
-        }}
-        onLogout={() => {
-          if (currentUser) {
-            setSavedProfiles((profiles) => ({
-              ...profiles,
-              [currentUser.email]: { user: currentUser, groups, guestGameIds },
-            }));
-          }
-          setCurrentUser(null);
-          setGroups(seedGroups());
-          setGuestGameIds([]);
-          setActiveGroupId(null);
-          setGameId(null);
-          setAccess("home");
-        }}
+        onOpenProfile={() => setProfileRequested(true)}
+        onSaveUser={saveProfile}
+        onLogout={logout}
         onLanguageChange={setLanguage}
         onEnter={() => {
           setGameId(null);
@@ -1276,10 +1317,10 @@ export function PlayUpApp() {
       />
     );
   if (access === "player")
-    return (
+    return withProfile(
       <PlayerView
         games={games.filter(visibleToPlayers).sort(chronological)}
-        game={game && !hasGameEnded(game) ? game : null}
+        game={game}
         choose={(g) => {
           setGameId(g);
           setEntered(false);
@@ -1320,7 +1361,6 @@ export function PlayUpApp() {
         }}
         onProfile={() => {
           setProfileRequested(true);
-          setAccess("home");
         }}
         join={join}
         exit={() => {
@@ -1337,17 +1377,18 @@ export function PlayUpApp() {
         confirmPayment={confirmPayment}
         notice={notice}
         language={language}
+        onLanguageChange={setLanguage}
       />
     );
   if (access === "my-games") {
-    return (
+    return withProfile(
       <MyGames
         games={myGames}
         language={language}
+        onLanguageChange={setLanguage}
         onBack={() => setAccess("groups")}
         onProfile={() => {
           setProfileRequested(true);
-          setAccess("home");
         }}
         onRequestGame={() => {
           const firstGame = groups.flatMap((group) => group.games).find((gameSession) => !hasGameEnded(gameSession));
@@ -1357,10 +1398,11 @@ export function PlayUpApp() {
     );
   }
   if (access === "admin" && requests.length)
-    return (
+    return withProfile(
       <ParticipationRequests
         games={games}
         language={language}
+        onLanguageChange={setLanguage}
         requests={requests}
         onApprove={approveRequest}
         onApproveAll={approveRequests}
@@ -1371,9 +1413,20 @@ export function PlayUpApp() {
         }}
         onProfile={() => {
           setProfileRequested(true);
-          setAccess("home");
         }}
       />
+    );
+  if (access === "statistics")
+    return withProfile(
+      <GroupStatistics
+        games={games}
+        groupName={activeGroup?.name ?? ""}
+        language={language}
+        onBack={() => setAccess("admin")}
+        onLanguageChange={setLanguage}
+        onProfile={() => setProfileRequested(true)}
+        players={players}
+      />,
     );
 
   const deleteGame = (gameSession: GameSession) => {
@@ -1384,8 +1437,12 @@ export function PlayUpApp() {
     }
   };
 
-  const editGameDetails = (gameSession: GameSession) => {
-    setGameId(null);
+  const editGameDetails = (
+    gameSession: GameSession,
+    keepGameOpen = false,
+  ) => {
+    setKeepGameOpenAfterEdit(keepGameOpen);
+    if (!keepGameOpen) setGameId(null);
     setEditGame(gameSession.id);
     setGameForm({ ...gameSession });
     setIsGameCreationOpen(true);
@@ -1395,14 +1452,15 @@ export function PlayUpApp() {
     setPendingRemoval(() => removeAction);
   };
 
-  return (
+  return withProfile(
     <main className="app-shell">
       <Header
         backLabel={localize("Voltar", language)}
         showBackArrow
+        language={language}
+        onLanguageChange={setLanguage}
         onProfile={() => {
           setProfileRequested(true);
-          setAccess("home");
         }}
         onBack={() => {
           if (game) {
@@ -1443,7 +1501,8 @@ export function PlayUpApp() {
             </h1>
             <EventSummary game={game} language={language} />
           </div>
-          <div className="hero-game-actions">
+          {!hasGameEnded(game) && (
+            <div className="hero-game-actions">
             <button
               className="secondary hero-game-action"
               onClick={() => {
@@ -1452,6 +1511,12 @@ export function PlayUpApp() {
               }}
             >
               {localize("Convidar para este jogo", language)}
+            </button>
+            <button
+              className="secondary hero-game-action"
+              onClick={() => editGameDetails(game, true)}
+            >
+              {localize("Editar", language)}
             </button>
             <button
               className={`hero-game-action session-action-button ${game.cancelled ? "reactivate-game" : "delete"}`}
@@ -1471,16 +1536,21 @@ export function PlayUpApp() {
                 language,
               )}
             </button>
-          </div>
+            </div>
+          )}
         </section>
       ) : !game ? (
         <section className="game-directory-heading game-management-heading">
           {activeGroup?.name && (
             <div className="group-management-actions">
-              <p>
-                {localize("Gerenciar grupo", language)}: {activeGroup.name}
-              </p>
+              <p>{activeGroup.name}</p>
               <div className="game-directory-actions">
+                <button
+                  className="session-action-button view"
+                  onClick={() => setAccess("statistics")}
+                >
+                  {localize("Estatísticas", language)}
+                </button>
                 <button
                   className="secondary"
                   onClick={() => {
@@ -1555,14 +1625,15 @@ export function PlayUpApp() {
                       >
                         {localize("Ver", language)}
                       </button>
-                      <button
-                        className="session-action-button edit"
-                        aria-label={localize("Editar", language)}
-                        disabled={isPastGame}
-                        onClick={() => editGameDetails(gameSession)}
-                      >
-                        {localize("Editar", language)}
-                      </button>
+                      {!isPastGame && (
+                        <button
+                          className="session-action-button edit"
+                          aria-label={localize("Editar", language)}
+                          onClick={() => editGameDetails(gameSession)}
+                        >
+                          {localize("Editar", language)}
+                        </button>
+                      )}
                       <button
                         className="session-action-button delete"
                         aria-label={localize("Deletar", language)}
@@ -1598,6 +1669,7 @@ export function PlayUpApp() {
               onSubmit={createOrEdit}
               onCancel={() => {
                 setEditGame(null);
+                setKeepGameOpenAfterEdit(false);
                 setGameForm(emptyGame);
                 setIsGameCreationOpen(false);
               }}
@@ -1632,6 +1704,10 @@ export function PlayUpApp() {
                     normalizeText(currentUser.displayName)
                     ? currentUser.id
                     : player.ownerUserId,
+                isGuest:
+                  !currentUser ||
+                  normalizeText(player.name) !==
+                    normalizeText(currentUser.displayName),
               },
             ]);
             return true;
@@ -1677,8 +1753,7 @@ export function PlayUpApp() {
       )}
       {game && hasGameEnded(game) ? (
         <ReadOnlyGame game={game} players={players} language={language} />
-      ) : (
-        game && (
+      ) : game ? (
           <fieldset
             className="game-management-controls"
             disabled={game.cancelled}
@@ -1890,26 +1965,6 @@ export function PlayUpApp() {
                             </button>
                           )}
                           <button
-                            aria-label={localize("Editar jogador", language)}
-                            className="icon-button subtle-tooltip"
-                            data-tooltip={localize("Editar jogador", language)}
-                            onClick={() => {
-                              setEditPlayer(p.id);
-                              setPlayerFormNotice("");
-                              setPlayerFormError("");
-                              setIsPlayerFormOpen(true);
-                              setPlayerForm({
-                                name: p.name,
-                                level: p.level,
-                                mobility: p.mobility,
-                                condition: p.condition,
-                                position: p.position,
-                              });
-                            }}
-                          >
-                            ✎
-                          </button>
-                          <button
                             aria-label={localize(
                               "Remover jogador da lista",
                               language,
@@ -2067,7 +2122,7 @@ export function PlayUpApp() {
                 <section className="teams-section team-balance-panel">
                   <p className="balance-availability">
                     {localize(
-                      "Balanceamento disponível apenas quando a lista estiver completa e todos os jogadores pagos.",
+                      "Gere times com pelo menos 2 jogadores pagos. Com a lista completa e todos pagos, os times são gerados automaticamente.",
                       language,
                     )}{" "}
                     {localize("Atual", language)}: ({paid.length}/{game.maxPlayers})
@@ -2075,20 +2130,21 @@ export function PlayUpApp() {
                   <button
                     className="primary team-balance-button"
                     onClick={() => {
-                      if (!isGameReadyForBalancing(game)) {
+                      if (paid.length < 2) {
                         setBalanceNotice(
                           localize(
-                            "O balanceamento será liberado somente quando a lista estiver completa e todos os jogadores estiverem pagos.",
+                            "Marque pelo menos 2 jogadores como pagos para gerar os times.",
                             language,
                           ),
                         );
                         return;
                       }
+                      const teams = generateBalancedTeams(paid, game.teams);
                       setBalanceNotice("");
                       updateGame(
                         {
                           ...game,
-                          teams: generateBalancedTeams(paid),
+                          teams,
                         },
                         false,
                       );
@@ -2109,8 +2165,7 @@ export function PlayUpApp() {
               </aside>
             </div>
           </fieldset>
-        )
-      )}
+      ) : null}
       {game && isPlayerFormOpen && (
         <div className="modal-backdrop" role="presentation">
           <section
@@ -2451,6 +2506,7 @@ function PlayerView({
   confirmPayment,
   notice,
   language,
+  onLanguageChange,
 }: {
   games: GameSession[];
   game: GameSession | null;
@@ -2473,6 +2529,7 @@ function PlayerView({
   confirmPayment: (playerId: number, isPaid: boolean) => boolean;
   notice: string;
   language: "pt" | "en";
+  onLanguageChange: (language: "pt" | "en") => void;
 }) {
   const [activeAction, setActiveAction] = useState<
     "join" | "request" | "leave" | null
@@ -2597,6 +2654,8 @@ function PlayerView({
         onBack={game ? closeGame : backToGroups}
         onHome={exit}
         onProfile={onProfile}
+        language={language}
+        onLanguageChange={onLanguageChange}
       />
       {!isViewingGame ? (
         <>

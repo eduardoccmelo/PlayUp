@@ -25,6 +25,7 @@ type GroupSelectorProps = {
   groups: PlayerGroup[];
   user: CurrentUser | null;
   language: Language;
+  onLanguageChange: (language: Language) => void;
   adminGroupIds: string[];
   onBack: () => void;
   onProfile: () => void;
@@ -123,6 +124,7 @@ export function GroupSelector({
   groups,
   user,
   language,
+  onLanguageChange,
   adminGroupIds,
   onBack,
   onProfile,
@@ -242,7 +244,7 @@ export function GroupSelector({
 
   return (
     <main className="app-shell group-selector-page">
-      <Header backLabel={localize("Voltar", language)} onBack={onBack} onProfile={onProfile} />
+      <Header backLabel={localize("Voltar", language)} onBack={onBack} onProfile={onProfile} language={language} onLanguageChange={onLanguageChange} />
       <section className="group-dashboard-section">
         <div className="game-directory-heading group-subsection-heading">
           <h1>
@@ -449,7 +451,7 @@ export function GroupSelector({
                     className="session-action-button view"
                     onClick={() => onChoose(group)}
                   >
-                    {localize("Entrar", language)}
+                    {localize(isAdmin ? "Gerenciar" : "Ver jogos", language)}
                   </button>
                   <button
                     className="primary group-share-button"
@@ -467,19 +469,16 @@ export function GroupSelector({
         </section>
       </section>
       {availableGroups.length > 0 && (
-        <p className="available-code-copy">
+        <section className="available-code-copy">
           <strong>
             {language === "pt"
-              ? "Outros grupos disponíveis:"
-              : "Other groups available:"}
-          </strong>{" "}
-          {availableGroups.map((group) => (
-            <span key={group.id}>
-              {group.name} — {groupPlayerInviteCode(group)} · Admin:{" "}
-              {groupAdminInviteCode(group)} ({group.organizerPasscode})
-            </span>
-          ))}
-        </p>
+              ? "Outros códigos de grupos disponíveis"
+              : "Other group codes available"}
+          </strong>
+          <span className="available-code-list">
+            {availableGroups.map(groupPlayerInviteCode).join(", ")}
+          </span>
+        </section>
       )}
       {
         <section className="my-games-section">
@@ -533,18 +532,18 @@ export function GroupSelector({
             )}
           </section>
           {availableGames.length > 0 && (
-            <p className="available-code-copy">
+            <section className="available-code-copy">
               <strong>
                 {language === "pt"
-                  ? "Outros jogos disponíveis:"
-                  : "Other games available:"}
-              </strong>{" "}
-              {availableGames.map(({ group, game }) => (
-                <span key={game.id}>
-                  {game.location} — {gameInviteCode(group, game)}
-                </span>
-              ))}
-            </p>
+                  ? "Outros códigos de jogos disponíveis"
+                  : "Other game codes available"}
+              </strong>
+              <span className="available-code-list">
+                {availableGames
+                  .map(({ group, game }) => gameInviteCode(group, game))
+                  .join(", ")}
+              </span>
+            </section>
           )}
         </section>
       }

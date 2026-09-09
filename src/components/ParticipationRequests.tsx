@@ -11,6 +11,7 @@ type ParticipationRequestsProps = {
   onBack: () => void;
   onProfile: () => void;
   language: Language;
+  onLanguageChange: (language: Language) => void;
 };
 
 function RequestGameDetails({
@@ -44,6 +45,7 @@ export function ParticipationRequests({
   onBack,
   onProfile,
   language,
+  onLanguageChange,
 }: ParticipationRequestsProps) {
   const joinRequests = requests.filter(
     (request) => request.type !== "leave" && request.type !== "payment",
@@ -55,7 +57,7 @@ export function ParticipationRequests({
 
   return (
     <main className="app-shell requests-page">
-      <Header backLabel={localize("Voltar", language)} onBack={onBack} onProfile={onProfile} />
+      <Header backLabel={localize("Voltar", language)} onBack={onBack} onProfile={onProfile} language={language} onLanguageChange={onLanguageChange} />
       {joinRequests.length > 0 && (
         <section className="requests-section">
           <div className="requests-section-heading">

@@ -11,7 +11,7 @@ export type CurrentUser = {
   devGodMode: boolean;
   createdAt: string;
 };
-export type Player = { id: number; name: string; ownerUserId?: string; level: number; mobility: Mobility; condition: Condition; position: Position; };
+export type Player = { id: number; name: string; ownerUserId?: string; isGuest?: boolean; level: number; mobility: Mobility; condition: Condition; position: Position; };
 export type ParticipationRequest = {
   id: number;
   name: string;
