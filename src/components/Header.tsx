@@ -50,7 +50,7 @@ export function Header({
           {backLabel}
         </button>
         {language && onLanguageChange && (
-          <div className="language-switch header-language-switch">
+          <div className="language-switch">
             <button
               aria-label="Português"
               className={language === "pt" ? "selected" : ""}
