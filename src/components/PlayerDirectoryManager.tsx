@@ -80,7 +80,7 @@ export function PlayerDirectoryManager({
             setMode("add");
           }}
         >
-          {localize("+ Adicionar jogador", language)}
+          {localize("+ Criar jogador", language)}
         </button>
       </div>
 

@@ -52,7 +52,18 @@ type PasswordFieldProps = {
   language: Language;
 };
 
-function MyGameDetails({ game, language }: { game: GameSession; language: Language }) {
+function OrganizerBadge({ language }: { language: Language }) {
+  return (
+    <span className="game-owner-badge">
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M12 3 14 8l5 .5-3.8 3.2 1.2 5.1-4.4-2.7-4.4 2.7 1.2-5.1L5 8.5 10 8l2-5Z" />
+      </svg>
+      {language === "pt" ? "Organizador" : "Organizer"}
+    </span>
+  );
+}
+
+function MyGameDetails({ game, language, isOwner }: { game: GameSession; language: Language; isOwner: boolean }) {
   const weekday = weekdayName(game.date, language === "pt" ? "pt-BR" : "en-GB");
   const shortWeekday = weekday
     .slice(0, 3)
@@ -70,8 +81,9 @@ function MyGameDetails({ game, language }: { game: GameSession; language: Langua
         <span className="weekday-name-short">{shortWeekday}</span>) · {game.location || localize("Local não informado", language)}
       </strong>
       <small>
-        {game.time} – {game.endTime} ({game.duration} {localize("min", language)})
+        {game.time}{!isOwner && <> – {game.endTime}</>} ({game.duration} {localize("min", language)})
         {court && ` · ${court}`}
+        {isOwner && <OrganizerBadge language={language} />}
       </small>
     </div>
   );
@@ -429,7 +441,7 @@ export function GroupSelector({
             memberGroups.map((group) => {
             const isAdmin = adminGroupIds.includes(group.id);
             return (
-              <article className="group-row" key={group.id}>
+              <article className={`group-row${isAdmin ? " admin-group-row" : ""}`} key={group.id}>
                 <div>
                   <div className="group-name-line">
                     <strong>{group.name}</strong>
@@ -506,9 +518,15 @@ export function GroupSelector({
           <section className="panel group-list my-games-list">
             {myGames.length ? (
               <div>
-                {myGames.map((game) => (
-                  <article className="group-row my-game-row" key={game.id}>
-                    <MyGameDetails game={game} language={language} />
+                {myGames.map((game) => {
+                  const gameGroup = groups.find((group) => group.games.includes(game));
+                  const isOwner =
+                    game.createdByRole === "participant" &&
+                    game.createdByUserId === user?.id &&
+                    !adminGroupIds.includes(gameGroup?.id ?? "");
+                  return (
+                  <article className={`group-row my-game-row${isOwner ? " organizer-game-row" : ""}`} key={game.id}>
+                    <MyGameDetails game={game} language={language} isOwner={isOwner} />
                     <div className="group-row-actions">
                       <button
                         className="session-action-button view"
@@ -524,7 +542,8 @@ export function GroupSelector({
                       </button>
                     </div>
                   </article>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="empty">

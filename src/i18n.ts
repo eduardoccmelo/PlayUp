@@ -329,6 +329,7 @@ export const translations: Record<
     Cadastrar: "Register",
     "Adicionar jogador": "Add player",
     "+ Adicionar jogador": "+ Add player",
+    "+ Criar jogador": "+ Create player",
     "Adicionar novo jogador": "Add new player",
     "Adicionando jogador": "Adding player",
     "Editando jogador": "Editing player",

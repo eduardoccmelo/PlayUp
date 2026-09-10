@@ -81,7 +81,7 @@ export function CompactGameDetails({
       )}
       {game.cancelled && (
         <span className="session-detail-cancelled">
-          ({localize("CANCELADO", language)})
+          {localize("CANCELADO", language)}
         </span>
       )}
     </p>

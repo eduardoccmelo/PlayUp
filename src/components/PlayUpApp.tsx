@@ -153,7 +153,7 @@ export function PlayUpApp() {
   useEffect(() => {
     localizePage(language);
   });
-  const [access, setAccess] = useState<"home" | "groups" | "admin" | "player" | "my-games" | "statistics" | "past-games">(
+  const [access, setAccess] = useState<"home" | "groups" | "admin" | "participant-manage" | "player" | "my-games" | "statistics" | "past-games">(
     "home",
   );
   const [groups, setGroups] = useLocalStorage<PlayerGroup[]>(
@@ -365,6 +365,7 @@ export function PlayUpApp() {
     game &&
       game.createdByRole === "participant" &&
       game.createdByUserId === currentUser?.id &&
+      access === "participant-manage" &&
       !adminGroupIds.includes(activeGroupId ?? ""),
   );
   const [gameForm, setGameForm] = useState(emptyGame);
@@ -1297,7 +1298,12 @@ export function PlayUpApp() {
           setInviteKind(null);
           setEntered(false);
           setPick("");
-          setAccess("player");
+          setAccess(
+            selectedGame.createdByRole === "participant" &&
+              selectedGame.createdByUserId === currentUser?.id
+              ? "participant-manage"
+              : "player",
+          );
         }}
         onLeaveMyGame={leaveMyGame}
         onLeaveGroup={(groupToLeave) => {
@@ -1415,7 +1421,7 @@ export function PlayUpApp() {
             gameSession.createdByRole === "participant" &&
             gameSession.createdByUserId === currentUser?.id
           ) {
-            setAccess("admin");
+            setAccess("participant-manage");
           }
         }}
         backToGameSelection={() => {
@@ -1480,7 +1486,7 @@ export function PlayUpApp() {
           };
           setGames([...games, newGame]);
           setGameId(newGame.id);
-          setAccess("admin");
+          setAccess("participant-manage");
           return null;
         }}
         onProfile={() => {
@@ -1662,6 +1668,14 @@ export function PlayUpApp() {
             setGameId(null);
             setEditGame(null);
             setIsGameCreationOpen(false);
+            if (access === "participant-manage") {
+              if (returnToDashboardAfterGame) {
+                setReturnToDashboardAfterGame(false);
+                setAccess("groups");
+              } else {
+                setAccess("player");
+              }
+            }
             return;
           }
           setNotice("");
@@ -1811,7 +1825,7 @@ export function PlayUpApp() {
 
                 return (
                   <div
-                    className={`session-row ${gameSession.id === gameId ? "active" : ""}`}
+                    className={`session-row ${gameSession.cancelled ? "cancelled" : ""} ${gameSession.id === gameId ? "active" : ""}`}
                     key={gameSession.id}
                   >
                     <CompactGameDetails
@@ -2016,7 +2030,7 @@ export function PlayUpApp() {
                         setIsPlayerFormOpen(true);
                       }}
                     >
-                      {localize("+ Adicionar jogador", language)}
+                      {localize("+ Criar jogador", language)}
                     </button>
                   </div>
                   {playerSearchResults.length > 0 && (
@@ -2335,7 +2349,7 @@ export function PlayUpApp() {
                     </p>
                   )}
                   {balanceCountOf(game) >= currentBalanceLimit && !isFinalBalanceAvailable && !game.lateRebalanceUsed && (
-                    <p className="balance-availability">
+                    <p className="balance-availability balance-limit-notice">
                       {localize(
                         "O limite de 1 rebalanceamento foi atingido. O botão será reativado 15 minutos antes do jogo para somente mais 1 rebalanceamento final.",
                         language,
@@ -3035,7 +3049,7 @@ function PlayerView({
                   );
                   return (
                     <div
-                      className={`session-row ${isEnded ? "ended" : ""}`}
+                      className={`session-row ${isEnded ? "ended" : ""} ${g.cancelled ? "cancelled" : ""}`}
                       key={g.id}
                     >
                       <CompactGameDetails game={g} language={language} waiting={isCurrentUserWaiting} />
