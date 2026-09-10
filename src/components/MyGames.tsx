@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { Fragment, useState, type FormEvent } from "react";
 import { localize, type Language } from "../i18n";
 import type { GameSession } from "../types";
 import { CompactGameDetails } from "./EventSummary";
@@ -39,8 +39,9 @@ export function MyGames({ games, language, onLanguageChange, onBack, onRequestGa
       <section className="panel participant-games-panel">
         {games.length ? (
           <div className="session-tabs participant-game-list">
-            {games.map((game) => (
-              <div className="session-row guest-game-row" key={game.id}>
+            {games.map((game, index) => (
+              <Fragment key={game.id}>
+              <div className="session-row guest-game-row">
                 <CompactGameDetails game={game} language={language} />
                 <div className="guest-game-status">
                   <strong>{localize("Aguardando aprovação", language)}</strong>
@@ -52,6 +53,10 @@ export function MyGames({ games, language, onLanguageChange, onBack, onRequestGa
                   <button className="session-action-button leave" disabled>{localize("Sair da lista", language)}</button>
                 </div>
               </div>
+              {index < games.length - 1 && (
+                <div className="list-row-divider" aria-hidden="true" />
+              )}
+              </Fragment>
             ))}
           </div>
         ) : (

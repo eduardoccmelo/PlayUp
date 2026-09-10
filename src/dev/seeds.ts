@@ -5,7 +5,7 @@ export const SEED_GROUP_ID = "seed-dev";
 export const SEED_GROUP_NAME = "Test Group";
 export const SEED_GROUP_PASSCODE = "admin";
 export const PARTICIPANT_SEED_GROUP_ID = "city-night-7f3a";
-const SEED_VERSION = 7;
+const SEED_VERSION = 8;
 
 const players: Player[] = [
   { id: 1, name: "Alex Morgan", level: 5, mobility: "rapido", condition: "boa", position: "ataque" },
@@ -254,6 +254,34 @@ const demoGame = (
   waitlistIds,
   paidPlayerIds: playerIds.slice(0, Math.max(0, playerIds.length - 1)),
   teams: null,
+});
+
+export const participantOrganizerDemoGame = (
+  id: number,
+  ownerUserId: string,
+  ownerPlayerId: number,
+): GameSession => ({
+  id,
+  date: dateFromToday(4),
+  time: "20:30",
+  endTime: "21:45",
+  duration: 75,
+  location: "Urban Sports Center",
+  courtNumber: "C",
+  courtCost: 110,
+  currency: "EUR",
+  maxPlayers: 6,
+  minPlayers: 4,
+  cancellationHours: 2,
+  cancelled: false,
+  paymentInfo: "Pix ou transferência",
+  disclaimer: "Jogo de demonstração criado por um participante",
+  playerIds: [ownerPlayerId, 101, 102],
+  waitlistIds: [],
+  paidPlayerIds: [101, 102],
+  teams: null,
+  createdByUserId: ownerUserId,
+  createdByRole: "participant",
 });
 
 export const seedGroups = (): PlayerGroup[] => [

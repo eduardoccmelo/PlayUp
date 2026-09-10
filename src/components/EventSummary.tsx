@@ -41,7 +41,12 @@ export function CompactGameDetails({
   language,
   waiting = false,
   hideEndTime = false,
-}: Omit<EventSummaryProps, "className"> & { waiting?: boolean; hideEndTime?: boolean }) {
+  organizer = false,
+}: Omit<EventSummaryProps, "className"> & {
+  waiting?: boolean;
+  hideEndTime?: boolean;
+  organizer?: boolean;
+}) {
   const court = game.courtNumber.trim()
     ? `${localize("Quadra", language)} ${game.courtNumber}`
     : localize("Quadra N/D", language);
@@ -77,6 +82,14 @@ export function CompactGameDetails({
       {!game.cancelled && (
         <span className="session-detail-court">
           {court}
+          {organizer && (
+            <span className="game-owner-badge">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 3 14 8l5 .5-3.8 3.2 1.2 5.1-4.4-2.7-4.4 2.7 1.2-5.1L5 8.5 10 8l2-5Z" />
+              </svg>
+              {language === "pt" ? "Organizador" : "Organizer"}
+            </span>
+          )}
         </span>
       )}
       {game.cancelled && (

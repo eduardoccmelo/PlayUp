@@ -756,7 +756,7 @@ em {
   font-weight: 800;
   letter-spacing: 0.04em;
   line-height: 1;
-  vertical-align: 1px;
+  vertical-align: middle;
 }
 .game-owner-badge svg {
   display: block;
@@ -782,7 +782,7 @@ em {
   font-weight: 800;
   letter-spacing: 0.04em;
   line-height: 1;
-  vertical-align: 1px;
+  vertical-align: middle;
 }
 .game-admin-badge svg {
   display: block;
@@ -1037,7 +1037,7 @@ header {
   display: grid;
   gap: 16px;
   margin-top: 18px;
-  padding-top: 16px;
+  padding: 16px 0;
   border-top: 1px solid #e4ece5;
   text-align: left;
 }
@@ -1078,7 +1078,6 @@ header {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-bottom: 20px;
 }
 .my-games-section {
   max-width: 760px;
@@ -1167,25 +1166,28 @@ header {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
+  gap: 0;
   flex-wrap: wrap;
 }
 .session-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #dce5dd;
+  padding: 12px;
 }
-.session-tabs .session-row:last-child {
-  border-bottom: 0;
+.list-row-divider {
+  width: 100%;
+  height: 1px;
+  background: #dce5dd;
+  border: 0;
+  flex: 0 0 1px;
 }
 .session-details {
   min-width: 0;
   flex: 1;
   margin: 0;
-  padding: 10px 12px;
-  background: #fff;
+  padding: 0;
+  background: transparent;
   color: #173c2b;
   text-align: left;
 }
@@ -1265,6 +1267,9 @@ header {
 .danger-button {
   background: #e66c26;
 }
+.participant-leave-group-button {
+  min-width: 0;
+}
 .session-action-button:hover,
 .danger-button:hover {
   filter: brightness(0.92);
@@ -1281,7 +1286,18 @@ header {
   cursor: not-allowed;
 }
 .participant-game-list {
+  gap: 8px;
   text-align: left;
+}
+.participant-game-list .session-row.organizer-game-row {
+  margin: 0;
+  padding: 12px;
+  border-bottom: 0;
+  border-radius: 10px;
+  background: #edf8ef;
+}
+.participant-game-list .session-row.organizer-game-row .session-details {
+  background: #edf8ef;
 }
 .participant-games-heading {
   padding-bottom: 0;
@@ -1320,9 +1336,19 @@ header {
 .session-row.ended {
   background: #edf0ed;
 }
+.past-games-list {
+  gap: 8px;
+}
+.past-games-list .session-row.ended {
+  padding: 12px;
+  border-radius: 12px;
+}
+.past-games-list .session-row.ended .session-details {
+  background: transparent;
+}
 .session-row.cancelled {
   margin: 0;
-  padding: 8px;
+  padding: 12px;
   border: 0;
   border-radius: 10px;
   background: #fff0ee;
@@ -1399,7 +1425,7 @@ header {
 }
 .game-directory-heading {
   display: flex;
-  align-items: center;
+  align-items: end;
   justify-content: space-between;
   gap: 16px;
   max-width: 1100px;
@@ -1434,9 +1460,10 @@ header {
 }
 .group-management-actions > p {
   margin: 0;
-  color: #244632;
-  font-size: 17px;
+  color: #173c2b;
+  font-size: 20px;
   font-weight: 800;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 .group-management-actions .game-directory-actions {
@@ -2492,6 +2519,15 @@ header {
   .waiting-game-icon-mobile {
     display: inline-block;
   }
+  .side-column .teams {
+    grid-template-columns: 1fr !important;
+    grid-auto-flow: row !important;
+  }
+  .side-column .versus {
+    padding: 4px 0;
+  }
+}
+@media (max-width: 799px) {
   .game-hero .event-summary {
     display: grid;
     grid-template-columns: auto auto;
@@ -2517,10 +2553,10 @@ header {
   .game-hero .event-summary-court {
     white-space: nowrap;
   }
-  .game-hero .event-summary-location:before,
-  .game-hero .event-summary-court:before {
-    display: inline;
-    content: "·";
+  .game-hero .event-summary-location::before,
+  .game-hero .event-summary-court::before {
+    display: inline-block !important;
+    content: "·" !important;
     margin-right: 12px;
   }
   .game-hero .event-summary-date,
@@ -2530,21 +2566,6 @@ header {
   .game-hero .event-summary-location,
   .game-hero .event-summary-court {
     text-align: left;
-  }
-  .readonly-game-view .event-summary-date,
-  .readonly-game-view .event-summary-time {
-    text-align: right;
-  }
-  .readonly-game-view .event-summary-location,
-  .readonly-game-view .event-summary-court {
-    text-align: left;
-  }
-  .side-column .teams {
-    grid-template-columns: 1fr !important;
-    grid-auto-flow: row !important;
-  }
-  .side-column .versus {
-    padding: 4px 0;
   }
 }
 @media (min-width: 721px) and (max-width: 1000px) {
@@ -3044,7 +3065,7 @@ header {
     gap: 8px;
   }
   .group-management-actions > p {
-    font-size: 14px;
+    font-size: 16px;
   }
   .group-management-actions .game-directory-actions {
     flex: 1;
@@ -3144,7 +3165,6 @@ header {
     align-items: stretch;
     flex-direction: column;
     gap: 8px;
-    border-radius: 13px;
   }
   .game-management-list .session-details {
     display: block;
@@ -3342,8 +3362,8 @@ header {
   font-size: 14px;
 }
 .participant-game-list .session-action-button.view {
-  width: 68px;
-  min-width: 68px;
+  width: 92px;
+  min-width: 92px;
   padding-inline: 10px;
 }
 .participant-game-list .session-action-button.leave {
@@ -3356,7 +3376,7 @@ header {
   width: 136px;
   min-width: 136px;
 }
-@media (max-width: 800px) {
+@media (max-width: 825px) {
   .participant-game-list .session-row {
     align-items: stretch;
     flex-direction: column;
@@ -3371,6 +3391,12 @@ header {
   .participant-game-list .session-row-actions .session-action-button {
     min-width: 0;
     flex: 1 1 0;
+  }
+  .participant-game-list
+    .session-row.organizer-game-row
+    .session-action-button.view {
+    width: auto;
+    min-width: 0;
   }
   .participant-game-list .session-action-button.confirm {
     inline-size: auto;
@@ -3396,7 +3422,7 @@ header {
     display: none;
   }
 }
-@media (min-width: 501px) and (max-width: 800px) {
+@media (min-width: 501px) and (max-width: 825px) {
   .participant-game-list .weekday-name-short {
     display: none;
   }
