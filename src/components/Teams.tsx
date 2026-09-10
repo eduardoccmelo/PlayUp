@@ -5,9 +5,10 @@ type TeamsProps = {
   teams: GameSession["teams"];
   language: "pt" | "en";
   embedded?: boolean;
+  showPositions?: boolean;
 };
 
-export function Teams({ teams, language, embedded = false }: TeamsProps) {
+export function Teams({ teams, language, embedded = false, showPositions = true }: TeamsProps) {
   if (!teams) return null;
 
   const content = (
@@ -20,7 +21,7 @@ export function Teams({ teams, language, embedded = false }: TeamsProps) {
           {teams.teamA.map((player) => (
             <p key={player.id}>
               {player.name}
-              {player.position === "goleiro" && " (G)"}
+              {showPositions && player.position === "goleiro" && " (G)"}
             </p>
           ))}
         </article>

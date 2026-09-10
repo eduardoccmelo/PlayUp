@@ -883,8 +883,11 @@ header {
 .hero-game-actions {
   display: flex;
   align-self: center;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
   margin-top: 16px;
+  width: 100%;
 }
 .hero-game-action {
   position: static;
@@ -1391,6 +1394,13 @@ header {
   font-size: 0.32em;
   font-weight: 800;
   letter-spacing: 0.02em;
+}
+.past-games-group-name {
+  margin: 0 0 9px;
+  color: #627364;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.2;
 }
 .directory-manager {
   max-width: 1100px;
@@ -2130,6 +2140,12 @@ header {
   border-radius: 8px;
   background: #edf8ef;
 }
+.restricted-player-form select {
+  display: none;
+}
+.restricted-player-form .player-form-name {
+  grid-column: 1 / -1;
+}
 .readonly-player-name {
   display: inline-flex;
   align-items: center;
@@ -2378,6 +2394,20 @@ header {
     position: static;
     align-self: center;
     margin: 0;
+  }
+}
+@media (max-width: 500px) {
+  .participant-game-list .weekday-name-short {
+    display: inline;
+  }
+  .participant-game-list .weekday-name-full {
+    display: none;
+  }
+}
+@media (max-width: 430px) {
+  .hero-game-actions .hero-game-action {
+    padding-inline: 7px;
+    font-size: 12px;
   }
 }
 @media (min-width: 721px) and (max-width: 800px) {
@@ -2765,7 +2795,7 @@ header {
   .auth-card,
   .participant-card,
   .panel {
-    padding: 0 16px;
+    padding: 16px;
   }
   .hero {
     padding: 32px 0 20px;
@@ -3044,6 +3074,7 @@ header {
     align-items: stretch;
     flex-direction: column;
     gap: 8px;
+    border-radius: 13px;
   }
   .game-management-list .session-details {
     display: block;
@@ -3285,7 +3316,15 @@ header {
     flex: 1 1 0;
   }
 }
-@media (max-width: 800px) {
+@media (max-width: 500px) {
+  .participant-game-list .weekday-name-short {
+    display: inline;
+  }
+  .participant-game-list .weekday-name-full {
+    display: none;
+  }
+}
+@media (min-width: 501px) and (max-width: 800px) {
   .participant-game-list .weekday-name-short {
     display: none;
   }
@@ -3315,5 +3354,39 @@ header {
   .game-directory-heading.participant-games-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+@media (max-width: 550px) {
+  .game-management-title-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .game-management-title-row .game-directory-actions {
+    display: contents;
+    width: auto;
+  }
+  .game-management-title-row .past-games-button {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .game-management-title-row .new-game-button {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    margin-top: 12px;
+  }
+  .game-directory-heading.participant-game-creator-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .participant-game-creator-heading .game-directory-actions {
+    display: flex;
+    width: 100%;
+    margin-left: 0;
+  }
+  .participant-game-creator-heading .game-directory-actions > button {
+    flex: 1 1 0;
+    min-width: 0;
   }
 }

@@ -65,8 +65,14 @@ const noRequests: ParticipationRequest[] = [];
 const isGameReadyForBalancing = (game: GameSession) =>
   game.playerIds.length === game.maxPlayers &&
   game.playerIds.every((playerId) => game.paidPlayerIds.includes(playerId));
-const MAX_STANDARD_BALANCES = 3;
-const FINAL_AUTOMATIC_BALANCE_WINDOW = 15 * 60 * 1000;
+const MAX_STANDARD_BALANCES = 2;
+const FINAL_REBALANCE_WINDOW = 15 * 60 * 1000;
+const standardBalanceLimit = (game: GameSession) =>
+  game.createdByRole === "participant" ? 1 : MAX_STANDARD_BALANCES;
+const isFinalRebalanceWindow = (game: GameSession, now: number) => {
+  const start = gameTimestamp(game);
+  return now >= start - FINAL_REBALANCE_WINDOW && now < start;
+};
 const balanceCountOf = (game: GameSession) =>
   game.balanceCount ?? game.manualRebalanceCount ?? 0;
 const appendBalanceHistory = (
@@ -355,6 +361,12 @@ export function PlayUpApp() {
     };
   }, []);
   const game = games.find((g) => g.id === gameId) ?? null;
+  const isParticipantGameManager = Boolean(
+    game &&
+      game.createdByRole === "participant" &&
+      game.createdByUserId === currentUser?.id &&
+      !adminGroupIds.includes(activeGroupId ?? ""),
+  );
   const [gameForm, setGameForm] = useState(emptyGame);
   const [editGame, setEditGame] = useState<number | null>(null);
   const [keepGameOpenAfterEdit, setKeepGameOpenAfterEdit] = useState(false);
@@ -425,6 +437,12 @@ export function PlayUpApp() {
   const paid = game
     ? listed.filter((p) => game.paidPlayerIds.includes(p.id))
     : [];
+  const currentBalanceLimit = game ? standardBalanceLimit(game) : MAX_STANDARD_BALANCES;
+  const isFinalBalanceAvailable =
+    Boolean(game) && isFinalRebalanceWindow(game!, clock) && !game!.lateRebalanceUsed;
+  const canBalance =
+    Boolean(game) &&
+    (balanceCountOf(game!) < currentBalanceLimit || isFinalBalanceAvailable);
   const waiting = useMemo(
     () =>
       game
@@ -458,7 +476,7 @@ export function PlayUpApp() {
       if (
         shouldBalanceAutomatically &&
         listedPlayers.length >= 2 &&
-        balanceCount < MAX_STANDARD_BALANCES
+        balanceCount < standardBalanceLimit(gameSession)
       ) {
         const nextCount = balanceCount + 1;
         return {
@@ -470,14 +488,12 @@ export function PlayUpApp() {
             type: "automatic",
             count: nextCount,
           }),
-          finalAutoBalanceGeneratedAt: undefined,
           teams: generateBalancedTeams(listedPlayers, gameSession.teams),
         };
       }
 
       return {
         ...gameSession,
-        finalAutoBalanceGeneratedAt: undefined,
         teams: null,
       };
     },
@@ -488,7 +504,7 @@ export function PlayUpApp() {
       if (
         isGameReadyForBalancing(gameSession) &&
         !gameSession.teams &&
-        balanceCountOf(gameSession) < MAX_STANDARD_BALANCES
+        balanceCountOf(gameSession) < standardBalanceLimit(gameSession)
       )
         return refreshTeams(gameSession, players);
       if (gameSession.teams && gameSession.playerIds.length < 2)
@@ -499,37 +515,6 @@ export function PlayUpApp() {
       setGames(gamesWithValidTeams);
     }
   }, [games, players, refreshTeams, setGames]);
-  useEffect(() => {
-    const nextGames = games.map((gameSession) => {
-      if (
-        gameSession.cancelled ||
-        hasGameEnded(gameSession) ||
-        balanceCountOf(gameSession) < MAX_STANDARD_BALANCES ||
-        gameSession.finalAutoBalanceGeneratedAt ||
-        gameTimestamp(gameSession) - clock > FINAL_AUTOMATIC_BALANCE_WINDOW
-      ) {
-        return gameSession;
-      }
-      const paidPlayers = gameSession.playerIds
-        .filter((playerId) => gameSession.paidPlayerIds.includes(playerId))
-        .map((playerId) => players.find((player) => player.id === playerId))
-        .filter((player): player is Player => Boolean(player));
-      if (paidPlayers.length < 2) return gameSession;
-
-      return {
-        ...gameSession,
-        teams: generateBalancedTeams(paidPlayers, gameSession.teams),
-        balanceHistory: appendBalanceHistory(gameSession, {
-          triggeredAt: new Date(clock).toISOString(),
-          type: "final-system",
-        }),
-        finalAutoBalanceGeneratedAt: new Date(clock).toISOString(),
-      };
-    });
-    if (nextGames.some((gameSession, index) => gameSession !== games[index])) {
-      setGames(nextGames);
-    }
-  }, [clock, games, players, setGames]);
   const fillOpenSpots = useCallback((gameSession: GameSession) => {
     const playersToPromote = gameSession.waitlistIds.slice(
       0,
@@ -676,6 +661,8 @@ export function PlayUpApp() {
         waitlistIds: [],
         paidPlayerIds: [],
         teams: null,
+        createdByUserId: currentUser?.id,
+        createdByRole: "admin",
         minPlayers: null,
         cancellationHours: 2,
         cancelled: false,
@@ -1419,6 +1406,18 @@ export function PlayUpApp() {
           setPick("");
           setNotice("");
         }}
+        onViewGame={(gameSession) => {
+          setGameId(gameSession.id);
+          setEntered(false);
+          setPick("");
+          setNotice("");
+          if (
+            gameSession.createdByRole === "participant" &&
+            gameSession.createdByUserId === currentUser?.id
+          ) {
+            setAccess("admin");
+          }
+        }}
         backToGameSelection={() => {
           setGameId(null);
           setEntered(false);
@@ -1450,6 +1449,39 @@ export function PlayUpApp() {
           leaveGroup(activeGroup);
           setActiveGroupId(null);
           setAccess("groups");
+        }}
+        canCreateGame={Boolean(
+          activeGroup &&
+            !adminGroupIds.includes(activeGroup.id) &&
+            (players.some((player) => isCurrentUserPlayer(player, currentUser)) ||
+              adminGroupIds.includes(activeGroup.id)),
+        )}
+        onCreateGame={(draft) => {
+          if (!isValidIsoDate(draft.date)) return "Informe uma data válida no formato DD/MM/AAAA.";
+          if (draft.date < today) return "Não é possível criar um jogo em uma data passada.";
+          const endTime = endTimeFromDuration(draft.time, draft.duration);
+          if (!endTime) return "A duração precisa terminar no mesmo dia.";
+          const newGame: GameSession = {
+            id: nextIdentifier(games),
+            ...draft,
+            endTime,
+            duration: Number(draft.duration),
+            courtCost: Number(draft.courtCost),
+            maxPlayers: Number(draft.maxPlayers),
+            minPlayers: null,
+            cancellationHours: 2,
+            cancelled: false,
+            playerIds: [],
+            waitlistIds: [],
+            paidPlayerIds: [],
+            teams: null,
+            createdByUserId: currentUser?.id,
+            createdByRole: "participant",
+          };
+          setGames([...games, newGame]);
+          setGameId(newGame.id);
+          setAccess("admin");
+          return null;
         }}
         onProfile={() => {
           setProfileRequested(true);
@@ -1489,7 +1521,11 @@ export function PlayUpApp() {
       />
     );
   }
-  if (access === "admin" && requests.length)
+  if (
+    access === "admin" &&
+    adminGroupIds.includes(activeGroupId ?? "") &&
+    requests.length
+  )
     return withProfile(
       <ParticipationRequests
         games={games}
@@ -1541,7 +1577,7 @@ export function PlayUpApp() {
           onProfile={() => setProfileRequested(true)}
         />
         <section className="game-directory-heading game-management-heading">
-          {activeGroup?.name && <p className="group-context-name">{activeGroup.name}</p>}
+          {activeGroup?.name && <p className="past-games-group-name">{activeGroup.name}</p>}
           <div className="game-management-title-row">
             <h1>
               {localize("Jogos", language)}{" "}
@@ -1758,7 +1794,7 @@ export function PlayUpApp() {
                 + {localize("Novo jogo", language)}
               </button>
               <button
-                className="secondary"
+                className="secondary past-games-button"
                 onClick={() => setAccess("past-games")}
               >
                 {localize("Jogos passados", language)}
@@ -2048,7 +2084,7 @@ export function PlayUpApp() {
                               {isPaid ? "✓" : "×"}
                             </span>
                           </strong>
-                          <span>
+                          {!isParticipantGameManager && <span>
                             {localize("Nível", language)} {p.level}
                             {p.condition !== "neutro" && (
                               <> · {p.condition === "boa" ? "↑" : "↓"}</>
@@ -2077,7 +2113,7 @@ export function PlayUpApp() {
                               )}{" "}
                               {localize("pontos", language)})
                             </span>
-                          </span>
+                          </span>}
                         </div>
                         <div className="player-row-actions">
                           {game.playerIds.includes(p.id) ? (
@@ -2293,36 +2329,50 @@ export function PlayUpApp() {
                     )}{" "}
                     {localize("Atual", language)}: ({paid.length}/{game.maxPlayers})
                   </p>
-                  {!game.finalAutoBalanceGeneratedAt && (
+                  {(!isParticipantGameManager || balanceCountOf(game) < currentBalanceLimit) && (
                     <p className="balance-availability">
-                      {localize("Balanceamentos", language)}: {balanceCountOf(game)} {localize("de", language)} {MAX_STANDARD_BALANCES}
-                      {balanceCountOf(game) >= MAX_STANDARD_BALANCES && (
-                        <>
-                          {" "}
-                          {localize(
-                            "O limite foi atingido. O sistema gerará os times automaticamente 15 minutos antes do jogo.",
-                            language,
-                          )}
-                        </>
+                      {localize("Balanceamentos", language)}: {balanceCountOf(game)} {localize("de", language)} {currentBalanceLimit}
+                    </p>
+                  )}
+                  {balanceCountOf(game) >= currentBalanceLimit && !isFinalBalanceAvailable && !game.lateRebalanceUsed && (
+                    <p className="balance-availability">
+                      {localize(
+                        "O limite de 1 rebalanceamento foi atingido. O botão será reativado 15 minutos antes do jogo para somente mais 1 rebalanceamento final.",
+                        language,
                       )}
                     </p>
                   )}
-                  {(game.balanceHistory ?? []).slice(-1).map((entry) => (
+                  {isFinalBalanceAvailable && (
+                    <p className="balance-availability">
+                      {localize(
+                        "Rebalanceamento final disponível: somente 1 tentativa até o início do jogo.",
+                        language,
+                      )}
+                    </p>
+                  )}
+                  {game.lateRebalanceUsed && (
+                    <p className="balance-availability">
+                      {localize("O rebalanceamento final já foi utilizado.", language)}
+                    </p>
+                  )}
+                  {!isParticipantGameManager && (game.balanceHistory ?? []).slice(-1).map((entry) => (
                     <p className="balance-availability" key={`${entry.triggeredAt}-${entry.type}`}>
-                      {entry.type === "admin"
+                      {entry.type === "late-rebalance"
                         ? language === "pt"
-                          ? `Balanceamento disparado por ${entry.adminName}. ${entry.count} de ${MAX_STANDARD_BALANCES}`
-                          : `Balance triggered by ${entry.adminName}. ${entry.count} of ${MAX_STANDARD_BALANCES}`
-                        : entry.type === "final-system"
-                          ? localize("Balanceamento final acionado pelo sistema.", language)
-                          : language === "pt"
-                            ? `Balanceamento automático acionado pelo sistema. ${entry.count} de ${MAX_STANDARD_BALANCES}`
-                            : `Automatic balance triggered by the system. ${entry.count} of ${MAX_STANDARD_BALANCES}`}
+                          ? `Rebalanceamento final disparado por ${entry.adminName ?? localize("Administrador", language)}.`
+                          : `Final rebalance triggered by ${entry.adminName ?? localize("Administrator", language)}.`
+                        : entry.type === "admin"
+                        ? language === "pt"
+                          ? `Balanceamento disparado por ${entry.adminName}. ${entry.count} de ${currentBalanceLimit}`
+                          : `Balance triggered by ${entry.adminName}. ${entry.count} of ${currentBalanceLimit}`
+                        : language === "pt"
+                          ? `Balanceamento automático acionado pelo sistema. ${entry.count} de ${currentBalanceLimit}`
+                          : `Automatic balance triggered by the system. ${entry.count} of ${currentBalanceLimit}`}
                     </p>
                   ))}
                   <button
                     className="primary team-balance-button"
-                    disabled={balanceCountOf(game) >= MAX_STANDARD_BALANCES}
+                    disabled={!canBalance}
                     onClick={() => {
                       if (paid.length < 2) {
                         setBalanceNotice(
@@ -2334,7 +2384,11 @@ export function PlayUpApp() {
                         return;
                       }
                       const teams = generateBalancedTeams(paid, game.teams);
-                      const nextBalanceCount = balanceCountOf(game) + 1;
+                      const isLateRebalance =
+                        balanceCountOf(game) >= currentBalanceLimit;
+                      const nextBalanceCount = isLateRebalance
+                        ? balanceCountOf(game)
+                        : balanceCountOf(game) + 1;
                       setBalanceNotice("");
                       updateGame(
                         {
@@ -2344,13 +2398,13 @@ export function PlayUpApp() {
                           manualRebalanceCount: undefined,
                           balanceHistory: appendBalanceHistory(game, {
                             triggeredAt: new Date().toISOString(),
-                            type: "admin",
+                            type: isLateRebalance ? "late-rebalance" : "admin",
                             adminName:
                               currentUser?.displayName ??
                               localize("Administrador", language),
-                            count: nextBalanceCount,
+                            count: isLateRebalance ? undefined : nextBalanceCount,
                           }),
-                          finalAutoBalanceGeneratedAt: undefined,
+                          lateRebalanceUsed: isLateRebalance || game.lateRebalanceUsed,
                         },
                         false,
                       );
@@ -2365,7 +2419,12 @@ export function PlayUpApp() {
                     <p className="generate-notice">{balanceNotice}</p>
                   )}
                   {game.teams && (
-                    <Teams embedded teams={game.teams} language={language} />
+                    <Teams
+                      embedded
+                      teams={game.teams}
+                      language={language}
+                      showPositions={!isParticipantGameManager}
+                    />
                   )}
                 </section>
               </aside>
@@ -2392,7 +2451,10 @@ export function PlayUpApp() {
                 {localize(playerFormError, language)}
               </p>
             )}
-            <form className="player-form" onSubmit={savePlayer}>
+            <form
+              className={`player-form${isParticipantGameManager ? " restricted-player-form" : ""}`}
+              onSubmit={savePlayer}
+            >
               <input
                 className="player-form-name"
                 required
@@ -2740,6 +2802,7 @@ function PlayerView({
   games,
   game,
   choose,
+  onViewGame,
   backToGameSelection,
   backToGroups,
   players,
@@ -2748,6 +2811,8 @@ function PlayerView({
   isGroupMember,
   onManageGroup,
   onLeaveGroup,
+  canCreateGame,
+  onCreateGame,
   onProfile,
   join,
   exit,
@@ -2763,6 +2828,7 @@ function PlayerView({
   games: GameSession[];
   game: GameSession | null;
   choose: (x: number) => void;
+  onViewGame: (game: GameSession) => void;
   backToGameSelection: () => void;
   backToGroups: () => void;
   players: Player[];
@@ -2771,6 +2837,8 @@ function PlayerView({
   isGroupMember: boolean;
   onManageGroup?: () => void;
   onLeaveGroup?: () => void;
+  canCreateGame: boolean;
+  onCreateGame: (draft: typeof emptyGame) => string | null;
   onProfile: () => void;
   join: () => boolean;
   exit: () => void;
@@ -2792,6 +2860,9 @@ function PlayerView({
   >(null);
   const [isGroupLeaveConfirmationOpen, setIsGroupLeaveConfirmationOpen] =
     useState(false);
+  const [isGameCreationOpen, setIsGameCreationOpen] = useState(false);
+  const [gameDraft, setGameDraft] = useState(emptyGame);
+  const [gameCreationError, setGameCreationError] = useState("");
   const sortedPlayerIds = (playerIds: number[]) => playerIds;
   useEffect(() => {
     localizePage(language);
@@ -2911,7 +2982,7 @@ function PlayerView({
       />
       {!isViewingGame ? (
         <>
-          <section className="game-directory-heading participant-games-heading">
+          <section className={`game-directory-heading participant-games-heading${canCreateGame ? " participant-game-creator-heading" : ""}`}>
             <h1>
               {groupName && <span className="group-context-name">{groupName}</span>}
               {localize("Escolha o", language)}{" "}
@@ -2921,6 +2992,18 @@ function PlayerView({
               {onManageGroup && (
                 <button className="secondary" onClick={onManageGroup}>
                   {localize("Gerenciar grupo", language)}
+                </button>
+              )}
+              {canCreateGame && (
+                <button
+                  className="primary"
+                  onClick={() => {
+                    setGameDraft(emptyGame);
+                    setGameCreationError("");
+                    setIsGameCreationOpen(true);
+                  }}
+                >
+                  + {localize("Novo jogo", language)}
                 </button>
               )}
               {onLeaveGroup && (
@@ -2961,7 +3044,7 @@ function PlayerView({
                           className="session-action-button view"
                           disabled={isEnded}
                           onClick={() => {
-                            choose(g.id);
+                            onViewGame(g);
                             setIsGameListOpen(true);
                           }}
                         >
@@ -3026,6 +3109,30 @@ function PlayerView({
         </>
       ) : (
         list
+      )}
+      {isGameCreationOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <section aria-modal="true" className="confirm-dialog game-form-modal" role="dialog">
+            <p className="form-mode">{localize("NOVO JOGO", language)}</p>
+            {gameCreationError && <small className="error">{localize(gameCreationError, language)}</small>}
+            <GameForm
+              draft={gameDraft}
+              isEditing={false}
+              language={language}
+              onChange={setGameDraft}
+              onCancel={() => setIsGameCreationOpen(false)}
+              onSubmit={(event) => {
+                event.preventDefault();
+                const error = onCreateGame(gameDraft);
+                if (error) {
+                  setGameCreationError(error);
+                  return;
+                }
+                setIsGameCreationOpen(false);
+              }}
+            />
+          </section>
+        </div>
       )}
       {activeAction && game && (
         <div className="modal-backdrop" role="presentation">
