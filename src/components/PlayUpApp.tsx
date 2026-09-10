@@ -1583,11 +1583,18 @@ export function PlayUpApp() {
           onProfile={() => setProfileRequested(true)}
         />
         <section className="game-directory-heading game-management-heading">
-          {activeGroup?.name && <p className="past-games-group-name">{activeGroup.name}</p>}
+          {activeGroup?.name && <p className="page-group-name">{activeGroup.name}</p>}
           <div className="game-management-title-row">
             <h1>
-              {localize("Jogos", language)}{" "}
-              <em>{localize("passados", language)}</em>
+              {language === "pt" ? (
+                <>
+                  {localize("Jogos", language)} <em>{localize("Passados", language)}</em>
+                </>
+              ) : (
+                <>
+                  <em>{localize("Passados", language)}</em> {localize("Jogos", language)}
+                </>
+              )}
             </h1>
           </div>
         </section>
@@ -2997,11 +3004,13 @@ function PlayerView({
       {!isViewingGame ? (
         <>
           <section className={`game-directory-heading participant-games-heading${canCreateGame ? " participant-game-creator-heading" : ""}`}>
-            <h1>
-              {groupName && <span className="group-context-name">{groupName}</span>}
-              {localize("Escolha o", language)}{" "}
-              <em>{localize("jogo", language)}</em>
-            </h1>
+            <div>
+              {groupName && <p className="page-group-name">{groupName}</p>}
+              <h1>
+                {localize("Escolha o", language)}{" "}
+                <em>{localize("jogo", language)}</em>
+              </h1>
+            </div>
             <div className="game-directory-actions">
               {onManageGroup && (
                 <button className="secondary" onClick={onManageGroup}>

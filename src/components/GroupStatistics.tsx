@@ -52,7 +52,7 @@ export function GroupStatistics({
       />
       <section className="game-directory-heading statistics-heading">
         <div>
-          <p className="group-context-name">{groupName}</p>
+          <p className="page-group-name">{groupName}</p>
           <h1>{localize("Estatísticas", language)}</h1>
         </div>
       </section>

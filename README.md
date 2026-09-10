@@ -10,6 +10,7 @@ PlayUp is a web application for organizing group sports games. One profile can m
 
 - [Features](#features)
 - [Current prototype flow](#current-prototype-flow)
+- [Detailed application flow](docs/app-flow.md)
 - [How to use](#how-to-use)
 - [Game rules](#game-rules)
 - [Team balancing](#team-balancing)
@@ -27,7 +28,8 @@ PlayUp is a web application for organizing group sports games. One profile can m
 - Create multiple independent groups.
 - Every group has a local participant code; the current seed also includes groups where the current profile is not an administrator.
 - Admin status belongs to a group, not to the whole account.
-- Administrators can manage games and players; participants can view games and share participant access.
+- Administrators can manage the group, every game, the player directory, and statistics. Group participants can create a game without becoming group administrators.
+- A participant who creates a game is its **organizer**: they manage that game's roster, payments, and teams, but cannot administer the group or other organizers' games.
 - Share one group dialog with distinct participant and admin invitation codes.
 - Change a group passcode only after confirming the current passcode.
 - Keep players, games, join requests, payments, and teams completely separate for each group.
@@ -41,10 +43,10 @@ PlayUp is a web application for organizing group sports games. One profile can m
 - Add or remove players from an individual game list.
 - Track payment status with a checkbox.
 - View group statistics: total games, active games, and completed-game participations per player.
-- Generate teams manually with at least two paid players, or automatically when the main list is full and every listed player is paid. Each game allows three standard balance generations in total (automatic or admin-triggered), with an auditable trigger history; after that, the system makes a final automatic balance 15 minutes before kickoff.
+- Generate teams from paid main-list players only. A full, fully paid list generates teams automatically; balancing limits depend on whether the game belongs to a group admin or a participant organizer.
 - See the score used for team balancing; this information is organizer-only.
 
-### Participants and guests
+### Participants, game organizers, and guests
 
 - View groups and personal upcoming games from one dashboard.
 - A group member joins with their linked player name without approval.
@@ -52,6 +54,8 @@ PlayUp is a web application for organizing group sports games. One profile can m
 - A non-member can add a game by code, see it in read-only mode, and request access.
 - A guest has game actions only after an administrator approves the request.
 - A participant can update only their own payment checkbox and remove only their own name from a game.
+- A group participant may create a game. They gain organizer controls only for games they created: create players, manage that game's list and payment state, and generate teams. They never gain group settings, statistics, player-directory attributes, or control of other games.
+- In a participant-organized game, player levels, position, condition, speed, and scoring are hidden from the organizer UI.
 - Player names cannot be duplicated within a group or an active game list.
 
 ### Games
@@ -106,13 +110,13 @@ The temporary code formats are validated against local data:
 | Group admin | `PUA-ADMIN-<groupId>` |
 | Specific game | `PUG-GAME-<groupId>-<gameId>` |
 
-These formats are for UI testing only. Production must use random, revocable server-side tokens. See [the backend specification](docs/backend-schema.md) for the target data model and API.
+These formats are for UI testing only. Production must use random, revocable server-side tokens. See the [detailed application flow](docs/app-flow.md) and [backend specification](docs/backend-schema.md) for the target workflow, data model, and API.
 
 ## How to use
 
 1. Create, sign in to, or edit your local profile. The prototype uses `123456` as the access-code demo.
 2. From **My groups**, create/join a group or open its games.
-3. If you are an admin of that group, use **Manage** to create games, maintain players, and process guest requests.
+3. If you are an admin of that group, use **Manage** to create games, maintain players, see statistics, and process guest requests. If you are only a participant, you can still create a game; its organizer controls apply only to that game.
 4. From **My next games**, view a game you are already attending, update your own payment state, or leave the list.
 5. Use **I have a game code** for a game outside your groups. In this prototype, the code opens a local demo game; the backend flow will request approval for a true guest.
 
@@ -130,7 +134,16 @@ These formats are for UI testing only. Production must use random, revocable ser
 
 ## Team balancing
 
-PlayUp can manually create two teams from at least two paid main-list players. When the main list is full and every listed player is paid, teams are generated automatically. There are at most three standard balance generations per game in total, whether triggered automatically or by an admin; each records the trigger and count. The system makes a final automatic balance 15 minutes before kickoff after that limit. The algorithm considers score, position, and speed; a rebalance chooses a different comparably fair split when one is available.
+Only paid players in the confirmed main list enter team balancing; unpaid players and waiting-list players never do. Manual generation needs at least two paid players. When the main list is full and every listed player is paid, PlayUp generates the first available balance automatically.
+
+The quota is intentionally small: balancing should be the final preparation step, preferably on game day. A roster or payment change invalidates the displayed teams, but does not reset the quota.
+
+| Game organizer | Standard balances (automatic/manual combined) | Final window |
+| --- | ---: | --- |
+| Group admin | 2 total | One final manual rebalance is enabled in the last 15 minutes before kickoff. |
+| Group participant | 1 total | One final manual rebalance is enabled in the last 15 minutes before kickoff. |
+
+For admin-managed games, the latest balance notice identifies whether it was automatic or triggered by an admin, who triggered it when applicable, and the current count. For participant-organized games, no administrator identity or player attributes are exposed. Each new balance replaces the previous notice and snapshot. The algorithm chooses a different comparably fair player split whenever possible; simply swapping Team A and Team B does not count as a new split.
 
 ### Player scores
 

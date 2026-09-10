@@ -49,6 +49,8 @@ export const translations: Record<
     Voltar: "Back",
     Sair: "Exit",
     JOGOS: "GAMES",
+    Jogos: "Games",
+    Passados: "Past",
     "Novo jogo": "New game",
     "Jogos passados": "Past games",
     passados: "past",
@@ -161,6 +163,7 @@ export const translations: Record<
     Balanceamentos: "Balances",
     de: "of",
     Administrador: "Administrator",
+    Administrator: "Administrator",
     "Balanceamento final acionado pelo sistema.":
       "Final balance triggered by the system.",
     "O limite foi atingido. O sistema gerará os times automaticamente 15 minutos antes do jogo.":
@@ -369,11 +372,20 @@ export const translations: Record<
     Atual: "Current",
     "O balanceamento será liberado somente quando a lista estiver completa e todos os jogadores estiverem pagos.":
       "Team balancing will be available only when the list is full and every player has paid.",
+    "Marque pelo menos 2 jogadores como pagos para gerar os times.":
+      "Mark at least 2 players as paid to generate teams.",
+    "O limite de 1 rebalanceamento foi atingido. O botão será reativado 15 minutos antes do jogo para somente mais 1 rebalanceamento final.":
+      "The limit of 1 rebalance has been reached. The button will be re-enabled 15 minutes before the game for one final rebalance only.",
+    "Rebalanceamento final disponível: somente 1 tentativa até o início do jogo.":
+      "Final rebalance available: only 1 attempt until the game starts.",
+    "O rebalanceamento final já foi utilizado.":
+      "The final rebalance has already been used.",
     "Você deseja sair deste grupo?": "Do you want to leave this group?",
     "Cancelar jogo": "Cancel game",
     "Reativar jogo": "Reactivate game",
     CANCELADO: "CANCELLED",
     "NOVO GRUPO": "NEW GROUP",
+    "EXCLUIR GRUPO": "DELETE GROUP",
     "Criar grupo de jogos": "Create a game group",
     "Nome do grupo": "Group name",
     "Editar nome do grupo": "Edit group name",

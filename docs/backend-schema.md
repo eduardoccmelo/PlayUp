@@ -7,6 +7,7 @@
 This document specifies a relational backend for the current PlayUp flow:
 
 - one profile can be an admin in one group and a participant in another;
+- a group participant may create and organize an individual game without becoming an admin of that group;
 - group invitations for admins and participants, plus manual group-code entry;
 - game invitations and manual game-code entry;
 - guests who can access only a specific game;
@@ -30,6 +31,7 @@ The access code behaves like a password: only its hash is stored, it is never sh
 |---|---|
 | admin | Administrator of one group; never a global role. |
 | participant | Permanent group member without administration rights. |
+| game organizer | The game creator. A group admin organizes every game; a participant organizes only games they created. |
 | guest | Not a group member; may access one approved game only. |
 | player | Sports profile/name on a game list. It may be linked to a user or created by an admin. |
 
@@ -63,7 +65,8 @@ create type game_participant_status as enum (
   'confirmed', 'waiting_list', 'left', 'removed'
 );
 create type invite_type as enum ('group_admin', 'group_participant', 'game_guest');
-create type team_balance_trigger as enum ('automatic', 'admin', 'final_system');
+create type game_creator_role as enum ('admin', 'participant');
+create type team_balance_trigger as enum ('automatic', 'organizer', 'late_rebalance');
 create type notification_type as enum (
   'game_access_requested', 'player_joined', 'player_left', 'payment_status_changed'
 );
@@ -187,6 +190,7 @@ create table games (
   player_notice text null,
   status game_status not null default 'active',
   created_by_user_id uuid not null references users(id),
+  created_by_role game_creator_role not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (min_players is null or min_players <= max_players)
@@ -220,6 +224,8 @@ create index user_game_accesses_user_idx
 ~~~
 
 This table powers My next games for people who are not group members. Group members derive access from active membership. A guest request creates a pending row; approval creates or reuses the guest profile but does not add them to the game list.
+
+`created_by_role` is captured from the creator's active group membership when the game is created. It is not a global user role. An active group admin can manage all group games. An active participant can create a game and is the organizer only of a game where `created_by_user_id` is their user id and `created_by_role = 'participant'`; they do not acquire group-admin powers.
 
 ### Game list, waiting list, and payments
 
@@ -275,16 +281,16 @@ create table game_team_balances (
   game_id uuid not null references games(id) on delete cascade,
   trigger_type team_balance_trigger not null,
   triggered_by_user_id uuid null references users(id),
-  standard_balance_number smallint null check (standard_balance_number between 1 and 3),
+  standard_balance_number smallint null check (standard_balance_number between 1 and 2),
   algorithm_version text not null,
   team_a_score numeric(8,2) not null,
   team_b_score numeric(8,2) not null,
   generated_at timestamptz not null default now(),
   invalidated_at timestamptz null,
   check (
-    (trigger_type = 'admin' and triggered_by_user_id is not null and standard_balance_number is not null)
+    (trigger_type = 'organizer' and triggered_by_user_id is not null and standard_balance_number is not null)
     or (trigger_type = 'automatic' and triggered_by_user_id is null and standard_balance_number is not null)
-    or (trigger_type = 'final_system' and triggered_by_user_id is null and standard_balance_number is null)
+    or (trigger_type = 'late_rebalance' and triggered_by_user_id is not null and standard_balance_number is null)
   )
 );
 
@@ -302,7 +308,11 @@ create table game_team_balance_members (
 
 ### Team-balancing guard
 
-Manual team balancing is available with at least two paid confirmed participants; unpaid and waiting-list entries are always excluded. When the main list reaches `max_players` and every confirmed participant is paid, generate a balance automatically. Allow at most three standard snapshots per game in total, whether `automatic` or admin-triggered, and preserve the count even if a roster or payment change invalidates a snapshot. Record the admin responsible for every admin-triggered balance. After the standard limit, generate one `final_system` snapshot 15 minutes before `starts_at` when at least two paid confirmed participants exist; it has no standard number. A rebalance creates a new snapshot and must prefer a different comparably fair member split when one exists; merely swapping Team A and Team B is not a new balance.
+Only paid confirmed participants are eligible for teams; unpaid and waiting-list entries are always excluded. Manual balancing is available from two paid confirmed participants. When the main list reaches `max_players` and every confirmed participant is paid, generate the next available standard balance automatically.
+
+The standard quota is determined by `games.created_by_role`: two standard balances for an admin-created game and one for a participant-created game. Automatic and organizer-triggered balances share that quota. Persist the count even if a roster or payment change invalidates a snapshot. Once the standard quota is exhausted, allow exactly one `late_rebalance` only during the 15 minutes before `starts_at`; it does not increment the standard count. The button must be disabled outside that window and after the late rebalance has been used.
+
+Record the triggering user for an organizer-triggered or late rebalance. For admin-created games, expose the latest trigger and standard count to administrators. For participant-created games, the API must not expose admin/player-skill information to the participant organizer. A new snapshot supersedes the active one and must prefer a different comparably fair player split when one exists; merely swapping Team A and Team B is not a new balance.
 
 ### Invitations and notifications
 
@@ -351,19 +361,20 @@ Every active group admin receives their own recipient row. Dismissing a message 
 ## Mandatory business rules
 
 1. Creating a group creates an active admin membership for its creator.
-2. Only active group admins may edit groups, games, and players; remove others; or create group invitations.
-3. Active group members may invite a guest to a game they can access.
-4. A group member joins using their linked profile, without approval. A full game places them in the waiting list.
-5. Guests never receive the group directory.
-6. A game code/link creates pending access. The game appears in My next games, but its actions are blocked.
-7. Only a group admin may approve or reject guest access.
-8. Approval grants the guest only that game, never a group membership.
-9. Join, leave, and payment changes notify all active group admins.
-10. A participant may update only their own payment state.
-11. Names are unique, ignoring case and repeated spaces, inside each group and active game list.
-12. Changing a group passcode requires the current passcode and does not invalidate existing memberships.
-13. Team balancing includes only paid confirmed main-list participants; waiting-list and unpaid participants never count. At least two paid participants are required for a manual balance; a full, fully paid list balances automatically. Only three standard balance generations are allowed per game in total, whether automatic or admin-triggered; each admin action records its responsible admin. After that limit, one final automatic balance is generated 15 minutes before the game.
-14. Finished games are immutable to both admins and participants except for deletion by an authorized admin. Their API representation is read-only and may include the latest valid team-balance snapshot.
+2. Only active group admins may edit or delete groups, manage the group player directory and statistics, manage any group game, or create group-admin invitations.
+3. An active group participant may create a game. They may manage only a game they created (roster, payments, player creation, and balancing), without access to group administration, statistics, player skills, or other games' management.
+4. Active group members may invite a guest to a game they can access.
+5. A group member joins using their linked profile, without approval. A full game places them in the waiting list.
+6. Guests never receive the group directory.
+7. A game code/link creates pending access. The game appears in My next games, but its actions are blocked.
+8. Only a group admin may approve or reject guest access.
+9. Approval grants the guest only that game, never a group membership.
+10. Join, leave, and payment changes notify all active group admins.
+11. A participant may update only their own payment state, except while acting as organizer of their own game under rule 3.
+12. Names are unique, ignoring case and repeated spaces, inside each group and active game list.
+13. Changing a group passcode requires the current passcode and does not invalidate existing memberships.
+14. Balancing includes only paid confirmed main-list participants. Standard quota: two balances for an admin-created game, one for a participant-created game; automatic and manual balances share it. One final manual rebalance is available only in the last 15 minutes before the game. Roster/payment changes do not reset either quota.
+15. Finished games are immutable to both admins and participants except for deletion by an authorized admin. Their API representation is read-only and may include the latest valid team-balance snapshot.
 
 ## Suggested HTTP API
 
@@ -388,6 +399,8 @@ POST   /v1/invites/:token/accept
 GET    /v1/groups/:groupId/games
 POST   /v1/groups/:groupId/games
 GET    /v1/games/:gameId
+PATCH  /v1/games/:gameId
+DELETE /v1/games/:gameId
 POST   /v1/games/lookup
 GET    /v1/me/games
 POST   /v1/games/:gameId/invites
@@ -406,7 +419,7 @@ POST   /v1/me/notifications/:notificationId/dismiss
 POST   /v1/me/notifications/dismiss-all
 ~~~
 
-Group join accepts a code and role. Admin mode also requires the current group passcode. Game lookup returns public game information only and must not expose the group player directory to a guest.
+Group join accepts a code and role. Admin mode also requires the current group passcode. `POST /v1/groups/:groupId/games` is available to any active group member and records `created_by_user_id` plus `created_by_role`. `PATCH`/roster/payment/team routes authorize a group admin for any group game, or the creator for their participant-created game. Game lookup returns public game information only and must not expose the group player directory or player skills to a guest or participant organizer.
 
 ## Temporary local-code convention
 
@@ -428,18 +441,21 @@ Return calculated permissions; the frontend must not infer authorization from ID
 {
   "game": { "id": "uuid", "location": "Court 3", "status": "active" },
   "viewerAccess": {
-    "kind": "guest",
+    "kind": "participant_organizer",
     "status": "pending",
     "canViewDetails": true,
     "canViewGroupPlayers": false,
-    "canJoin": false,
-    "canLeave": false,
-    "canUpdateOwnPayment": false
+    "canViewPlayerSkills": false,
+    "canManageGame": true,
+    "canEditGroup": false,
+    "canJoin": true,
+    "canLeave": true,
+    "canUpdateOwnPayment": true
   }
 }
 ~~~
 
-After approval, canJoin and canLeave become true while canViewGroupPlayers remains false.
+For a guest awaiting approval, `kind` is `guest`, `status` is `pending`, and all game actions stay false. For an admin, `canManageGame` and group capabilities are true. For a participant organizer, `canManageGame` is true only on their own game while all group capabilities remain false.
 
 ## Security and implementation notes
 
@@ -463,6 +479,7 @@ Este documento fica em inglês como referência principal de implementação. Re
 - Guest recebe acesso apenas ao jogo convidado: solicita entrada com o nome, fica pendente e só usa as ações do jogo após aprovação de um admin.
 - A pessoa pode sair apenas da própria entrada; admin remove outras pessoas pelo gerenciamento.
 - Nomes não podem repetir dentro de um grupo nem de uma lista ativa de jogo.
-- O balanceamento manual exige pelo menos dois jogadores pagos da lista principal; com lista cheia e todos pagos, os times são gerados automaticamente. Jogadores não pagos e da lista de espera não entram no cálculo. Cada jogo permite somente três gerações de balanceamento regulares, automáticas ou acionadas por admin; ações de admin registram o responsável. Após o limite, o sistema gera um balanceamento final 15 minutos antes do jogo, sem entrar na contagem. Novo balanceamento deve mudar a composição quando existir alternativa justa, e não apenas trocar os times de lado.
+- Um participante do grupo pode criar e organizar somente o próprio jogo, sem se tornar admin do grupo. Admin gerencia todos os jogos; organizador participante administra apenas lista, pagamentos, criação de jogadores e times do seu jogo. Atributos técnicos e estatísticas do grupo permanecem ocultos para ele.
+- O balanceamento manual exige pelo menos dois jogadores pagos da lista principal; com lista cheia e todos pagos, os times são gerados automaticamente. Jogadores não pagos e da lista de espera não entram no cálculo. Jogos criados por admin permitem duas gerações regulares; jogos criados por participante permitem uma. Automático e manual compartilham esse limite. Depois há somente um rebalanceamento manual final nos últimos 15 minutos antes do jogo. Alterar lista/pagamento não reinicia os limites. Novo balanceamento deve mudar a composição quando existir alternativa justa, e não apenas trocar os times de lado.
 - Jogos finalizados são somente leitura para admins e participantes; a API pode exibir o último snapshot válido dos times.
 - O protótipo usa códigos locais previsíveis apenas para teste; o backend deverá usar tokens aleatórios hasheados.

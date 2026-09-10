@@ -10,6 +10,7 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 
 - [Funcionalidades](#funcionalidades)
 - [Fluxo atual do protótipo](#fluxo-atual-do-protótipo)
+- [Fluxo detalhado da aplicação](docs/app-flow.md)
 - [Como usar](#como-usar)
 - [Regras do jogo](#regras-do-jogo)
 - [Balanceamento dos times](#balanceamento-dos-times)
@@ -27,7 +28,8 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 - Criação de múltiplos grupos independentes.
 - Cada grupo possui um código local para participantes; os dados de demonstração também incluem grupos em que o perfil atual não é admin.
 - Ser admin é uma permissão por grupo, não por conta.
-- Admins gerenciam jogos e jogadores; participantes veem jogos e compartilham acesso de participante.
+- Admins gerenciam o grupo, todos os jogos, o cadastro de jogadores e as estatísticas. Participantes do grupo podem criar um jogo sem se tornarem admins do grupo.
+- Quem cria um jogo como participante é o **organizador** daquele jogo: gerencia lista, pagamentos e times dele, mas não administra o grupo nem jogos de outros organizadores.
 - Um único modal de compartilhar reúne códigos de convite para jogadores e admins.
 - Alteração da senha exige a senha atual.
 - Separação de dados por grupo: jogadores, jogos, solicitações, pagamentos e times não se misturam entre grupos.
@@ -42,10 +44,10 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 - Inclusão e remoção de jogadores da lista de cada jogo.
 - Controle de pagamento por checkbox.
 - Estatísticas do grupo: total de jogos, jogos ativos e participações de cada jogador em jogos concluídos.
-- Geração manual de times com pelo menos dois jogadores pagos, ou automática quando a lista principal estiver completa e todos estiverem pagos. Cada jogo permite três gerações de balanceamento regulares no total (automáticas ou acionadas por admin), com histórico do responsável; após esse limite, o sistema faz um balanceamento automático final 15 minutos antes do início.
+- Geração de times apenas com jogadores pagos da lista principal. Lista completa e totalmente paga gera times automaticamente; os limites dependem de o jogo ser de admin ou de organizador participante.
 - Visualização dos pontos de balanceamento de cada jogador, exclusiva do painel administrativo.
 
-### Participantes e guests
+### Participantes, organizadores de jogos e guests
 
 - Painel único para grupos e próximos jogos pessoais.
 - Membro do grupo entra no jogo com o próprio nome, sem aprovação.
@@ -53,6 +55,8 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 - Quem não é membro pode adicionar um jogo por código, vê-lo em modo leitura e solicitar acesso.
 - Guest só usa as ações do jogo depois da aprovação de um admin.
 - Cada participante altera somente seu próprio pagamento e remove somente o próprio nome.
+- Um participante do grupo pode criar um jogo. Ele recebe controles de organizador somente nos jogos que criou: criar jogadores, gerenciar a lista e pagamentos daquele jogo e gerar times. Ele nunca recebe configurações do grupo, estatísticas, atributos do cadastro geral ou controle dos demais jogos.
+- Em jogos criados por participante, nível, posição, condição, velocidade e pontos dos jogadores ficam ocultos para esse organizador.
 - Nomes não podem ser duplicados dentro de um grupo ou de uma lista ativa de jogo.
 
 ### Jogos
@@ -107,13 +111,13 @@ Os formatos temporários são validados contra os dados locais:
 | Admin de grupo | `PUA-ADMIN-<groupId>` |
 | Jogo específico | `PUG-GAME-<groupId>-<gameId>` |
 
-Esses códigos servem somente para testar a interface. Em produção, devem ser tokens aleatórios e revogáveis do servidor. Consulte a [especificação de backend](docs/backend-schema.md).
+Esses códigos servem somente para testar a interface. Em produção, devem ser tokens aleatórios e revogáveis do servidor. Consulte o [fluxo detalhado da aplicação](docs/app-flow.md) e a [especificação de backend](docs/backend-schema.md).
 
 ## Como usar
 
 1. Crie, entre ou edite seu perfil local. O protótipo usa `123456` como código de acesso de demonstração.
 2. Em **Meus grupos**, crie/entre em um grupo ou abra os jogos dele.
-3. Se você for admin daquele grupo, use **Gerenciar** para criar jogos, manter jogadores e processar solicitações.
+3. Se você for admin daquele grupo, use **Gerenciar** para criar jogos, manter jogadores, ver estatísticas e processar solicitações. Se for apenas participante, ainda pode criar um jogo; os controles de organizador valem somente para esse jogo.
 4. Em **Meus próximos jogos**, veja jogos em que você participa, altere seu próprio pagamento ou saia da lista.
 5. Use **Tenho um código de jogo** para um jogo fora dos seus grupos. No protótipo, o código abre um jogo local; no backend, o guest solicitará aprovação.
 
@@ -131,7 +135,16 @@ Esses códigos servem somente para testar a interface. Em produção, devem ser 
 
 ## Balanceamento dos times
 
-O PlayUp gera manualmente dois times a partir de dois jogadores pagos da lista principal. Com lista completa e todos pagos, os times são gerados automaticamente. Cada jogo permite três gerações de balanceamento regulares no total, automáticas ou acionadas por admin; cada uma registra o responsável e a contagem. Após esse limite, o sistema faz um balanceamento automático final 15 minutos antes do início. A composição considera pontuação, posição e velocidade; ao balancear novamente, uma divisão diferente e comparavelmente justa é escolhida quando houver alternativa.
+Somente jogadores pagos na lista principal entram no balanceamento; jogadores não pagos e da lista de espera nunca entram. A geração manual exige pelo menos dois jogadores pagos. Quando a lista principal está completa e todos estão pagos, o PlayUp gera automaticamente o primeiro balanceamento disponível.
+
+O limite é propositalmente pequeno: o balanceamento deve ser a etapa final da preparação, de preferência no dia do jogo. Alterar a lista ou o pagamento invalida os times exibidos, mas não reinicia o limite.
+
+| Responsável pelo jogo | Balanceamentos regulares (automático/manual combinados) | Janela final |
+| --- | ---: | --- |
+| Admin do grupo | 2 no total | Um rebalanceamento manual final é liberado nos últimos 15 minutos antes do início. |
+| Participante do grupo | 1 no total | Um rebalanceamento manual final é liberado nos últimos 15 minutos antes do início. |
+
+Nos jogos gerenciados por admin, o último aviso informa se o balanceamento foi automático ou disparado por admin, identifica o responsável quando aplicável e mostra a contagem. Em jogos criados por participante, nenhum nome de admin nem atributo de jogador é exibido. Cada novo balanceamento substitui o aviso e o snapshot anterior. Sempre que houver alternativa justa, o algoritmo escolhe uma composição diferente; apenas inverter Time A e Time B não conta como nova divisão.
 
 ### Pontos de cada jogador
 

@@ -477,12 +477,6 @@ em {
 .statistics-heading h1 {
   margin: 0;
 }
-.statistics-heading .group-context-name {
-  margin: 0 0 9px;
-  color: #627364;
-  font-size: 17px;
-  line-height: 1.2;
-}
 .statistics-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1433,19 +1427,12 @@ header {
   margin-bottom: 0;
   flex-shrink: 0;
 }
-.group-context-name {
-  display: block;
-  margin-bottom: 7px;
+.page-group-name {
+  margin: 0 0 10px;
   color: #627364;
-  font-size: 0.32em;
+  font-size: clamp(17px, 2vw, 20px);
   font-weight: 800;
   letter-spacing: 0.02em;
-}
-.past-games-group-name {
-  margin: 0 0 9px;
-  color: #627364;
-  font-size: 17px;
-  font-weight: 800;
   line-height: 1.2;
 }
 .directory-manager {
