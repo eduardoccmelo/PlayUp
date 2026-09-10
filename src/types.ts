@@ -22,7 +22,13 @@ export type ParticipationRequest = {
   type?: "join" | "leave" | "payment";
 };
 export type BalancedTeams = { teamA: Player[]; teamB: Player[]; sumA: number; sumB: number; };
-export type GameSession = { id: number; date: string; time: string; endTime: string; duration: number; location: string; courtNumber: string; courtCost: number; currency: "EUR" | "USD" | "GBP" | "BRL"; maxPlayers: number; minPlayers: number | null; cancellationHours: number | null; cancelled: boolean; paymentInfo: string; disclaimer: string; playerIds: number[]; waitlistIds: number[]; paidPlayerIds: number[]; teams: BalancedTeams | null; };
+export type BalanceHistoryEntry = {
+  triggeredAt: string;
+  type: "automatic" | "admin" | "final-system";
+  adminName?: string;
+  count?: number;
+};
+export type GameSession = { id: number; date: string; time: string; endTime: string; duration: number; location: string; courtNumber: string; courtCost: number; currency: "EUR" | "USD" | "GBP" | "BRL"; maxPlayers: number; minPlayers: number | null; cancellationHours: number | null; cancelled: boolean; paymentInfo: string; disclaimer: string; playerIds: number[]; waitlistIds: number[]; paidPlayerIds: number[]; teams: BalancedTeams | null; balanceCount?: number; balanceHistory?: BalanceHistoryEntry[]; manualRebalanceCount?: number; finalAutoBalanceGeneratedAt?: string; };
 export type PlayerGroup = {
   id: string;
   name: string;

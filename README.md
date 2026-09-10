@@ -41,7 +41,7 @@ PlayUp is a web application for organizing group sports games. One profile can m
 - Add or remove players from an individual game list.
 - Track payment status with a checkbox.
 - View group statistics: total games, active games, and completed-game participations per player.
-- Generate teams manually with at least two paid players, or automatically when the main list is full and every listed player is paid. Rebalancing selects a different comparably fair split when one exists.
+- Generate teams manually with at least two paid players, or automatically when the main list is full and every listed player is paid. Each game allows three standard balance generations in total (automatic or admin-triggered), with an auditable trigger history; after that, the system makes a final automatic balance 15 minutes before kickoff.
 - See the score used for team balancing; this information is organizer-only.
 
 ### Participants and guests
@@ -130,7 +130,7 @@ These formats are for UI testing only. Production must use random, revocable ser
 
 ## Team balancing
 
-PlayUp can manually create two teams from at least two paid main-list players. When the main list is full and every listed player is paid, teams are generated automatically. The algorithm considers score, position, and speed; a rebalance chooses a different comparably fair split when one is available.
+PlayUp can manually create two teams from at least two paid main-list players. When the main list is full and every listed player is paid, teams are generated automatically. There are at most three standard balance generations per game in total, whether triggered automatically or by an admin; each records the trigger and count. The system makes a final automatic balance 15 minutes before kickoff after that limit. The algorithm considers score, position, and speed; a rebalance chooses a different comparably fair split when one is available.
 
 ### Player scores
 

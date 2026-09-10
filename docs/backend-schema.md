@@ -63,6 +63,7 @@ create type game_participant_status as enum (
   'confirmed', 'waiting_list', 'left', 'removed'
 );
 create type invite_type as enum ('group_admin', 'group_participant', 'game_guest');
+create type team_balance_trigger as enum ('automatic', 'admin', 'final_system');
 create type notification_type as enum (
   'game_access_requested', 'player_joined', 'player_left', 'payment_status_changed'
 );
@@ -272,12 +273,19 @@ When a game is marked `finished`, lock it and insert/upsert one row per confirme
 create table game_team_balances (
   id uuid primary key default gen_random_uuid(),
   game_id uuid not null references games(id) on delete cascade,
-  generated_by_user_id uuid not null references users(id),
+  trigger_type team_balance_trigger not null,
+  triggered_by_user_id uuid null references users(id),
+  standard_balance_number smallint null check (standard_balance_number between 1 and 3),
   algorithm_version text not null,
   team_a_score numeric(8,2) not null,
   team_b_score numeric(8,2) not null,
   generated_at timestamptz not null default now(),
-  invalidated_at timestamptz null
+  invalidated_at timestamptz null,
+  check (
+    (trigger_type = 'admin' and triggered_by_user_id is not null and standard_balance_number is not null)
+    or (trigger_type = 'automatic' and triggered_by_user_id is null and standard_balance_number is not null)
+    or (trigger_type = 'final_system' and triggered_by_user_id is null and standard_balance_number is null)
+  )
 );
 
 create unique index game_team_balances_one_active_idx
@@ -294,7 +302,7 @@ create table game_team_balance_members (
 
 ### Team-balancing guard
 
-Manual team balancing is available with at least two paid confirmed participants; unpaid and waiting-list entries are always excluded. When the main list reaches `max_players` and every confirmed participant is paid, generate a balance automatically. If a listed player leaves or becomes unpaid, invalidate any stored team snapshot. A rebalance creates a new snapshot and must prefer a different comparably fair member split when one exists; merely swapping Team A and Team B is not a new balance.
+Manual team balancing is available with at least two paid confirmed participants; unpaid and waiting-list entries are always excluded. When the main list reaches `max_players` and every confirmed participant is paid, generate a balance automatically. Allow at most three standard snapshots per game in total, whether `automatic` or admin-triggered, and preserve the count even if a roster or payment change invalidates a snapshot. Record the admin responsible for every admin-triggered balance. After the standard limit, generate one `final_system` snapshot 15 minutes before `starts_at` when at least two paid confirmed participants exist; it has no standard number. A rebalance creates a new snapshot and must prefer a different comparably fair member split when one exists; merely swapping Team A and Team B is not a new balance.
 
 ### Invitations and notifications
 
@@ -354,7 +362,7 @@ Every active group admin receives their own recipient row. Dismissing a message 
 10. A participant may update only their own payment state.
 11. Names are unique, ignoring case and repeated spaces, inside each group and active game list.
 12. Changing a group passcode requires the current passcode and does not invalidate existing memberships.
-13. Team balancing includes only paid confirmed main-list participants; waiting-list and unpaid participants never count. At least two paid participants are required for a manual balance; a full, fully paid list balances automatically.
+13. Team balancing includes only paid confirmed main-list participants; waiting-list and unpaid participants never count. At least two paid participants are required for a manual balance; a full, fully paid list balances automatically. Only three standard balance generations are allowed per game in total, whether automatic or admin-triggered; each admin action records its responsible admin. After that limit, one final automatic balance is generated 15 minutes before the game.
 14. Finished games are immutable to both admins and participants except for deletion by an authorized admin. Their API representation is read-only and may include the latest valid team-balance snapshot.
 
 ## Suggested HTTP API
@@ -455,6 +463,6 @@ Este documento fica em inglês como referência principal de implementação. Re
 - Guest recebe acesso apenas ao jogo convidado: solicita entrada com o nome, fica pendente e só usa as ações do jogo após aprovação de um admin.
 - A pessoa pode sair apenas da própria entrada; admin remove outras pessoas pelo gerenciamento.
 - Nomes não podem repetir dentro de um grupo nem de uma lista ativa de jogo.
-- O balanceamento manual exige pelo menos dois jogadores pagos da lista principal; com lista cheia e todos pagos, os times são gerados automaticamente. Jogadores não pagos e da lista de espera não entram no cálculo. Novo balanceamento deve mudar a composição quando existir alternativa justa, e não apenas trocar os times de lado.
+- O balanceamento manual exige pelo menos dois jogadores pagos da lista principal; com lista cheia e todos pagos, os times são gerados automaticamente. Jogadores não pagos e da lista de espera não entram no cálculo. Cada jogo permite somente três gerações de balanceamento regulares, automáticas ou acionadas por admin; ações de admin registram o responsável. Após o limite, o sistema gera um balanceamento final 15 minutos antes do jogo, sem entrar na contagem. Novo balanceamento deve mudar a composição quando existir alternativa justa, e não apenas trocar os times de lado.
 - Jogos finalizados são somente leitura para admins e participantes; a API pode exibir o último snapshot válido dos times.
 - O protótipo usa códigos locais previsíveis apenas para teste; o backend deverá usar tokens aleatórios hasheados.

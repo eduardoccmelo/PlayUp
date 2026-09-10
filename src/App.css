@@ -2038,6 +2038,11 @@ header {
   font-size: 14px;
   letter-spacing: 0.06em;
 }
+.group-invite-admin-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
 .group-invite-name {
   color: #173c2b;
   font-weight: 900;

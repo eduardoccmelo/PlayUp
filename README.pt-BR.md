@@ -42,7 +42,7 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 - Inclusão e remoção de jogadores da lista de cada jogo.
 - Controle de pagamento por checkbox.
 - Estatísticas do grupo: total de jogos, jogos ativos e participações de cada jogador em jogos concluídos.
-- Geração manual de times com pelo menos dois jogadores pagos, ou automática quando a lista principal estiver completa e todos estiverem pagos. Um novo balanceamento escolhe uma divisão diferente e comparavelmente justa quando houver alternativa.
+- Geração manual de times com pelo menos dois jogadores pagos, ou automática quando a lista principal estiver completa e todos estiverem pagos. Cada jogo permite três gerações de balanceamento regulares no total (automáticas ou acionadas por admin), com histórico do responsável; após esse limite, o sistema faz um balanceamento automático final 15 minutos antes do início.
 - Visualização dos pontos de balanceamento de cada jogador, exclusiva do painel administrativo.
 
 ### Participantes e guests
@@ -131,7 +131,7 @@ Esses códigos servem somente para testar a interface. Em produção, devem ser 
 
 ## Balanceamento dos times
 
-O PlayUp gera manualmente dois times a partir de dois jogadores pagos da lista principal. Com lista completa e todos pagos, os times são gerados automaticamente. A composição considera pontuação, posição e velocidade; ao balancear novamente, uma divisão diferente e comparavelmente justa é escolhida quando houver alternativa.
+O PlayUp gera manualmente dois times a partir de dois jogadores pagos da lista principal. Com lista completa e todos pagos, os times são gerados automaticamente. Cada jogo permite três gerações de balanceamento regulares no total, automáticas ou acionadas por admin; cada uma registra o responsável e a contagem. Após esse limite, o sistema faz um balanceamento automático final 15 minutos antes do início. A composição considera pontuação, posição e velocidade; ao balancear novamente, uma divisão diferente e comparavelmente justa é escolhida quando houver alternativa.
 
 ### Pontos de cada jogador
 

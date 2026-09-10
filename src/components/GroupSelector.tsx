@@ -164,13 +164,14 @@ export function GroupSelector({
   const [gameCodeError, setGameCodeError] = useState("");
   const memberGroups = groups.filter(
     (group) =>
-      adminGroupIds.includes(group.id) ||
+      !(user?.leftGroupIds ?? []).includes(group.id) &&
+      (adminGroupIds.includes(group.id) ||
       group.players.some(
         (player) =>
           player.ownerUserId === user?.id ||
           (user !== null &&
             normalizeText(player.name) === normalizeText(user.displayName)),
-      ),
+      )),
   );
   const adminGroupFromCode = groups.find((group) =>
     normalizeText(joinCode) === normalizeText(groupAdminInviteCode(group)),
@@ -189,8 +190,8 @@ export function GroupSelector({
 
   const createGroup = (event: FormEvent) => {
     event.preventDefault();
-    if (groups.length >= 3) {
-      setGroupError("Você só pode criar até 3 grupos no momento.");
+    if (memberGroups.length >= 5) {
+      setGroupError("Você pode participar de até 5 grupos no momento.");
       return;
     }
     if (!name.trim() || !passcode.trim()) return;
@@ -724,7 +725,16 @@ export function GroupSelector({
             </div>
             {groupInvite.canInviteAdmins && (
               <div className="group-invite-section">
-                <h2>{localize("CONVIDAR ADMINS", language)}</h2>
+                <div className="group-invite-admin-heading">
+                  <h2>{localize("CONVIDAR ADMINS", language)}</h2>
+                  <span className="group-admin-badge">
+                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                      <path d="M12 3 20 6v5c0 5-3.4 8.1-8 10-4.6-1.9-8-5-8-10V6l8-3Z" />
+                      <path d="M9 12.5 11 14.5l4-4" />
+                    </svg>
+                    Admin
+                  </span>
+                </div>
                 <p>
                   {localize("Este convite pede a senha do grupo antes de liberar o acesso de admin.", language)}
                 </p>

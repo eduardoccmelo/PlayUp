@@ -50,6 +50,10 @@ export const translations: Record<
     Sair: "Exit",
     JOGOS: "GAMES",
     "Novo jogo": "New game",
+    "Jogos passados": "Past games",
+    passados: "past",
+    "Nenhum jogo passado": "No past games",
+    "Nenhum jogo futuro": "No upcoming games",
     "Convidar admin": "Invite admin",
     "Convidar admins": "Invite admins",
     "Convidar participante": "Invite participant",
@@ -151,6 +155,18 @@ export const translations: Record<
     "Gerar times pagos →": "Generate paid-player teams →",
     "Gerar times": "Generate teams",
     "Balancear novamente": "Balance again",
+    "Deixe o balanceamento como etapa final, de preferência no dia do jogo. Com a lista completa e todos pagos, os times são gerados automaticamente.":
+      "Leave team balancing as a final step, ideally on game day. When the list is full and everyone is paid, teams are generated automatically.",
+    "Rebalanceamentos manuais": "Manual rebalances",
+    Balanceamentos: "Balances",
+    de: "of",
+    Administrador: "Administrator",
+    "Balanceamento final acionado pelo sistema.":
+      "Final balance triggered by the system.",
+    "O limite foi atingido. O sistema gerará os times automaticamente 15 minutos antes do jogo.":
+      "The limit has been reached. The system will generate teams automatically 15 minutes before the game.",
+    "Você pode participar de até 5 grupos no momento.":
+      "You can belong to up to 5 groups at the moment.",
     Estatísticas: "Statistics",
     "Total de jogos": "Total games",
     "Jogos ativos": "Active games",

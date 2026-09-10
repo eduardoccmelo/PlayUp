@@ -7,6 +7,7 @@ import {
 } from "../utils/teamBalancer";
 import type {
   Condition,
+  BalanceHistoryEntry,
   GameSession,
   Mobility,
   Position,
@@ -64,6 +65,14 @@ const noRequests: ParticipationRequest[] = [];
 const isGameReadyForBalancing = (game: GameSession) =>
   game.playerIds.length === game.maxPlayers &&
   game.playerIds.every((playerId) => game.paidPlayerIds.includes(playerId));
+const MAX_STANDARD_BALANCES = 3;
+const FINAL_AUTOMATIC_BALANCE_WINDOW = 15 * 60 * 1000;
+const balanceCountOf = (game: GameSession) =>
+  game.balanceCount ?? game.manualRebalanceCount ?? 0;
+const appendBalanceHistory = (
+  game: GameSession,
+  entry: BalanceHistoryEntry,
+) => [...(game.balanceHistory ?? []), entry].slice(-4);
 const resetPageScroll = () => {
   window.scrollTo(0, 0);
   document.documentElement.scrollTop = 0;
@@ -138,7 +147,7 @@ export function PlayUpApp() {
   useEffect(() => {
     localizePage(language);
   });
-  const [access, setAccess] = useState<"home" | "groups" | "admin" | "player" | "my-games" | "statistics">(
+  const [access, setAccess] = useState<"home" | "groups" | "admin" | "player" | "my-games" | "statistics" | "past-games">(
     "home",
   );
   const [groups, setGroups] = useLocalStorage<PlayerGroup[]>(
@@ -371,6 +380,8 @@ export function PlayUpApp() {
   const [currentGroupPasscode, setCurrentGroupPasscode] = useState("");
   const [newGroupPasscode, setNewGroupPasscode] = useState("");
   const [groupSettingsError, setGroupSettingsError] = useState("");
+  const [groupDeletePasscode, setGroupDeletePasscode] = useState("");
+  const [groupDeleteError, setGroupDeleteError] = useState("");
   const [pendingRemoval, setPendingRemoval] = useState<(() => void) | null>(
     null,
   );
@@ -442,20 +453,43 @@ export function PlayUpApp() {
       const shouldBalanceAutomatically =
         isGameReadyForBalancing(gameSession) &&
         listedPlayers.length === gameSession.playerIds.length;
+      const balanceCount = balanceCountOf(gameSession);
+
+      if (
+        shouldBalanceAutomatically &&
+        listedPlayers.length >= 2 &&
+        balanceCount < MAX_STANDARD_BALANCES
+      ) {
+        const nextCount = balanceCount + 1;
+        return {
+          ...gameSession,
+          balanceCount: nextCount,
+          manualRebalanceCount: undefined,
+          balanceHistory: appendBalanceHistory(gameSession, {
+            triggeredAt: new Date().toISOString(),
+            type: "automatic",
+            count: nextCount,
+          }),
+          finalAutoBalanceGeneratedAt: undefined,
+          teams: generateBalancedTeams(listedPlayers, gameSession.teams),
+        };
+      }
 
       return {
         ...gameSession,
-        teams:
-          shouldBalanceAutomatically && listedPlayers.length >= 2
-            ? generateBalancedTeams(listedPlayers)
-            : null,
+        finalAutoBalanceGeneratedAt: undefined,
+        teams: null,
       };
     },
     [],
   );
   useEffect(() => {
     const gamesWithValidTeams = games.map((gameSession) => {
-      if (isGameReadyForBalancing(gameSession) && !gameSession.teams)
+      if (
+        isGameReadyForBalancing(gameSession) &&
+        !gameSession.teams &&
+        balanceCountOf(gameSession) < MAX_STANDARD_BALANCES
+      )
         return refreshTeams(gameSession, players);
       if (gameSession.teams && gameSession.playerIds.length < 2)
         return { ...gameSession, teams: null };
@@ -465,6 +499,37 @@ export function PlayUpApp() {
       setGames(gamesWithValidTeams);
     }
   }, [games, players, refreshTeams, setGames]);
+  useEffect(() => {
+    const nextGames = games.map((gameSession) => {
+      if (
+        gameSession.cancelled ||
+        hasGameEnded(gameSession) ||
+        balanceCountOf(gameSession) < MAX_STANDARD_BALANCES ||
+        gameSession.finalAutoBalanceGeneratedAt ||
+        gameTimestamp(gameSession) - clock > FINAL_AUTOMATIC_BALANCE_WINDOW
+      ) {
+        return gameSession;
+      }
+      const paidPlayers = gameSession.playerIds
+        .filter((playerId) => gameSession.paidPlayerIds.includes(playerId))
+        .map((playerId) => players.find((player) => player.id === playerId))
+        .filter((player): player is Player => Boolean(player));
+      if (paidPlayers.length < 2) return gameSession;
+
+      return {
+        ...gameSession,
+        teams: generateBalancedTeams(paidPlayers, gameSession.teams),
+        balanceHistory: appendBalanceHistory(gameSession, {
+          triggeredAt: new Date(clock).toISOString(),
+          type: "final-system",
+        }),
+        finalAutoBalanceGeneratedAt: new Date(clock).toISOString(),
+      };
+    });
+    if (nextGames.some((gameSession, index) => gameSession !== games[index])) {
+      setGames(nextGames);
+    }
+  }, [clock, games, players, setGames]);
   const fillOpenSpots = useCallback((gameSession: GameSession) => {
     const playersToPromote = gameSession.waitlistIds.slice(
       0,
@@ -1154,6 +1219,33 @@ export function PlayUpApp() {
           );
           const group = participantGroup ?? adminGroup;
           if (!group) return "Código de grupo inválido.";
+          const isAlreadyMember = Boolean(
+            currentUser &&
+              !(currentUser.leftGroupIds ?? []).includes(group.id) &&
+              ((currentUser.adminGroupIds ?? []).includes(group.id) ||
+                group.players.some(
+                  (player) =>
+                    player.ownerUserId === currentUser.id ||
+                    normalizeText(player.name) ===
+                      normalizeText(currentUser.displayName),
+                )),
+          );
+          const currentMembershipCount = currentUser
+            ? groups.filter(
+                (candidate) =>
+                  !(currentUser.leftGroupIds ?? []).includes(candidate.id) &&
+                  ((currentUser.adminGroupIds ?? []).includes(candidate.id) ||
+                    candidate.players.some(
+                      (player) =>
+                        player.ownerUserId === currentUser.id ||
+                        normalizeText(player.name) ===
+                          normalizeText(currentUser.displayName),
+                    )),
+              ).length
+            : 0;
+          if (!isAlreadyMember && currentMembershipCount >= 5) {
+            return "Você pode participar de até 5 grupos no momento.";
+          }
           if (adminGroup && passcode !== adminGroup.organizerPasscode) {
             return "Senha atual incorreta.";
           }
@@ -1437,6 +1529,73 @@ export function PlayUpApp() {
     }
   };
 
+  if (access === "past-games")
+    return withProfile(
+      <main className="app-shell">
+        <Header
+          backLabel={localize("Voltar", language)}
+          language={language}
+          onBack={() => setAccess("admin")}
+          onHome={() => setAccess("home")}
+          onLanguageChange={setLanguage}
+          onProfile={() => setProfileRequested(true)}
+        />
+        <section className="game-directory-heading game-management-heading">
+          {activeGroup?.name && <p className="group-context-name">{activeGroup.name}</p>}
+          <div className="game-management-title-row">
+            <h1>
+              {localize("Jogos", language)}{" "}
+              <em>{localize("passados", language)}</em>
+            </h1>
+          </div>
+        </section>
+        <section className="panel session-panel game-management-list">
+          {games.filter(hasGameEnded).length > 0 ? (
+            <div className="session-tabs">
+              {[...games]
+                .filter(hasGameEnded)
+                .sort(chronological)
+                .map((gameSession) => (
+                  <div className="session-row ended" key={gameSession.id}>
+                    <CompactGameDetails game={gameSession} language={language} />
+                    <div className="session-row-actions">
+                      <button
+                        className="session-action-button view"
+                        onClick={() => {
+                          setGameId(gameSession.id);
+                          setAccess("admin");
+                        }}
+                      >
+                        {localize("Ver", language)}
+                      </button>
+                      <button
+                        className="session-action-button delete"
+                        onClick={() => setGameToDelete(gameSession)}
+                      >
+                        {localize("Deletar", language)}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <p className="empty">{localize("Nenhum jogo passado", language)}</p>
+          )}
+        </section>
+        {gameToDelete && (
+          <ConfirmDialog
+            kind="delete-game"
+            language={language}
+            onCancel={() => setGameToDelete(null)}
+            onConfirm={() => {
+              deleteGame(gameToDelete);
+              setGameToDelete(null);
+            }}
+          />
+        )}
+      </main>,
+    );
+
   const editGameDetails = (
     gameSession: GameSession,
     keepGameOpen = false,
@@ -1571,7 +1730,11 @@ export function PlayUpApp() {
                 </button>
                 <button
                   className="session-action-button delete"
-                  onClick={() => setIsGroupDeleteOpen(true)}
+                  onClick={() => {
+                    setGroupDeletePasscode("");
+                    setGroupDeleteError("");
+                    setIsGroupDeleteOpen(true);
+                  }}
                 >
                   {localize("Deletar grupo", language)}
                 </button>
@@ -1594,20 +1757,25 @@ export function PlayUpApp() {
               >
                 + {localize("Novo jogo", language)}
               </button>
+              <button
+                className="secondary"
+                onClick={() => setAccess("past-games")}
+              >
+                {localize("Jogos passados", language)}
+              </button>
             </div>
           </div>
         </section>
       ) : null}
       {!game && (
         <section className="panel session-panel game-management-list">
-          {games.length > 0 ? (
+          {games.some((gameSession) => !hasGameEnded(gameSession)) ? (
             <div className="session-tabs">
-              {[...games].sort(chronological).map((gameSession) => {
-                const isPastGame = hasGameEnded(gameSession);
+              {[...games].filter((gameSession) => !hasGameEnded(gameSession)).sort(chronological).map((gameSession) => {
 
                 return (
                   <div
-                    className={`session-row ${gameSession.id === gameId ? "active" : ""} ${isPastGame ? "ended" : ""}`}
+                    className={`session-row ${gameSession.id === gameId ? "active" : ""}`}
                     key={gameSession.id}
                   >
                     <CompactGameDetails
@@ -1625,15 +1793,13 @@ export function PlayUpApp() {
                       >
                         {localize("Ver", language)}
                       </button>
-                      {!isPastGame && (
-                        <button
-                          className="session-action-button edit"
-                          aria-label={localize("Editar", language)}
-                          onClick={() => editGameDetails(gameSession)}
-                        >
-                          {localize("Editar", language)}
-                        </button>
-                      )}
+                      <button
+                        className="session-action-button edit"
+                        aria-label={localize("Editar", language)}
+                        onClick={() => editGameDetails(gameSession)}
+                      >
+                        {localize("Editar", language)}
+                      </button>
                       <button
                         className="session-action-button delete"
                         aria-label={localize("Deletar", language)}
@@ -1647,7 +1813,7 @@ export function PlayUpApp() {
               })}
             </div>
           ) : (
-            <p className="empty">{localize("Nenhum jogo criado", language)}</p>
+            <p className="empty">{localize("Nenhum jogo futuro", language)}</p>
           )}
         </section>
       )}
@@ -2122,13 +2288,41 @@ export function PlayUpApp() {
                 <section className="teams-section team-balance-panel">
                   <p className="balance-availability">
                     {localize(
-                      "Gere times com pelo menos 2 jogadores pagos. Com a lista completa e todos pagos, os times são gerados automaticamente.",
+                      "Deixe o balanceamento como etapa final, de preferência no dia do jogo. Com a lista completa e todos pagos, os times são gerados automaticamente.",
                       language,
                     )}{" "}
                     {localize("Atual", language)}: ({paid.length}/{game.maxPlayers})
                   </p>
+                  {!game.finalAutoBalanceGeneratedAt && (
+                    <p className="balance-availability">
+                      {localize("Balanceamentos", language)}: {balanceCountOf(game)} {localize("de", language)} {MAX_STANDARD_BALANCES}
+                      {balanceCountOf(game) >= MAX_STANDARD_BALANCES && (
+                        <>
+                          {" "}
+                          {localize(
+                            "O limite foi atingido. O sistema gerará os times automaticamente 15 minutos antes do jogo.",
+                            language,
+                          )}
+                        </>
+                      )}
+                    </p>
+                  )}
+                  {(game.balanceHistory ?? []).slice(-1).map((entry) => (
+                    <p className="balance-availability" key={`${entry.triggeredAt}-${entry.type}`}>
+                      {entry.type === "admin"
+                        ? language === "pt"
+                          ? `Balanceamento disparado por ${entry.adminName}. ${entry.count} de ${MAX_STANDARD_BALANCES}`
+                          : `Balance triggered by ${entry.adminName}. ${entry.count} of ${MAX_STANDARD_BALANCES}`
+                        : entry.type === "final-system"
+                          ? localize("Balanceamento final acionado pelo sistema.", language)
+                          : language === "pt"
+                            ? `Balanceamento automático acionado pelo sistema. ${entry.count} de ${MAX_STANDARD_BALANCES}`
+                            : `Automatic balance triggered by the system. ${entry.count} of ${MAX_STANDARD_BALANCES}`}
+                    </p>
+                  ))}
                   <button
                     className="primary team-balance-button"
+                    disabled={balanceCountOf(game) >= MAX_STANDARD_BALANCES}
                     onClick={() => {
                       if (paid.length < 2) {
                         setBalanceNotice(
@@ -2140,11 +2334,23 @@ export function PlayUpApp() {
                         return;
                       }
                       const teams = generateBalancedTeams(paid, game.teams);
+                      const nextBalanceCount = balanceCountOf(game) + 1;
                       setBalanceNotice("");
                       updateGame(
                         {
                           ...game,
                           teams,
+                          balanceCount: nextBalanceCount,
+                          manualRebalanceCount: undefined,
+                          balanceHistory: appendBalanceHistory(game, {
+                            triggeredAt: new Date().toISOString(),
+                            type: "admin",
+                            adminName:
+                              currentUser?.displayName ??
+                              localize("Administrador", language),
+                            count: nextBalanceCount,
+                          }),
+                          finalAutoBalanceGeneratedAt: undefined,
                         },
                         false,
                       );
@@ -2353,18 +2559,64 @@ export function PlayUpApp() {
       {isGroupDeleteOpen && activeGroup && (
         <div className="modal-backdrop" role="presentation">
           <section aria-modal="true" className="confirm-dialog group-auth-modal" role="dialog">
-            <p className="form-mode">{localize("EXCLUIR GRUPO", language)}</p>
-            <p>{localize("Esta ação não pode ser desfeita.", language)}</p>
-            <div className="confirm-dialog-actions">
-              <button className="secondary" onClick={() => setIsGroupDeleteOpen(false)}>{localize("Cancelar", language)}</button>
-              <button className="session-action-button delete" onClick={() => {
-                setGroups((currentGroups) => currentGroups.filter((group) => group.id !== activeGroup.id));
-                setCurrentUser((user) => user ? { ...user, adminGroupIds: (user.adminGroupIds ?? []).filter((id) => id !== activeGroup.id) } : user);
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (groupDeletePasscode !== activeGroup.organizerPasscode) {
+                  setGroupDeleteError("Senha atual incorreta.");
+                  return;
+                }
+                setGroups((currentGroups) =>
+                  currentGroups.filter((group) => group.id !== activeGroup.id),
+                );
+                setCurrentUser((user) =>
+                  user
+                    ? {
+                        ...user,
+                        adminGroupIds: (user.adminGroupIds ?? []).filter(
+                          (id) => id !== activeGroup.id,
+                        ),
+                      }
+                    : user,
+                );
                 setActiveGroupId(null);
                 setIsGroupDeleteOpen(false);
                 setAccess("groups");
-              }}>{localize("Deletar", language)}</button>
-            </div>
+              }}
+            >
+              <p className="form-mode">{localize("EXCLUIR GRUPO", language)}</p>
+              <p>{localize("Esta ação não pode ser desfeita.", language)}</p>
+              <label className="profile-field">
+                {localize("Senha atual", language)}
+                <input
+                  autoFocus
+                  required
+                  type="password"
+                  value={groupDeletePasscode}
+                  onChange={(event) => {
+                    setGroupDeletePasscode(event.target.value);
+                    setGroupDeleteError("");
+                  }}
+                />
+              </label>
+              {groupDeleteError && (
+                <small className="error">
+                  {localize(groupDeleteError, language)}
+                </small>
+              )}
+              <div className="confirm-dialog-actions">
+                <button
+                  className="secondary"
+                  type="button"
+                  onClick={() => setIsGroupDeleteOpen(false)}
+                >
+                  {localize("Cancelar", language)}
+                </button>
+                <button className="session-action-button delete">
+                  {localize("Deletar", language)}
+                </button>
+              </div>
+            </form>
           </section>
         </div>
       )}

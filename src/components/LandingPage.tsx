@@ -75,8 +75,7 @@ export function LandingPage({
   const [resendConfirmation, setResendConfirmation] = useState(false);
   const profileChanged =
     !user?.emailVerified ||
-    user.email !== email.trim().toLowerCase() ||
-    user.displayName !== name.trim();
+    user.email !== email.trim().toLowerCase();
   const isEmailUpdate = Boolean(
     user?.emailVerified && user.email !== email.trim().toLowerCase(),
   );
@@ -103,7 +102,7 @@ export function LandingPage({
     setEmail(user?.email ?? "");
   };
   const sendAccessCode = () => {
-    if (mode === "sign-up" && !name.trim()) {
+    if ((mode === "sign-up" || user?.emailVerified) && !name.trim()) {
       setProfileError("Informe seu nome.");
       return;
     }
