@@ -63,7 +63,29 @@ function OrganizerBadge({ language }: { language: Language }) {
   );
 }
 
-function MyGameDetails({ game, language, isOwner }: { game: GameSession; language: Language; isOwner: boolean }) {
+function GameAdminBadge() {
+  return (
+    <span className="game-admin-badge">
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M12 3 20 6v5c0 5-3.4 8.1-8 10-4.6-1.9-8-5-8-10V6l8-3Z" />
+        <path d="M9 12.5 11 14.5l4-4" />
+      </svg>
+      Admin
+    </span>
+  );
+}
+
+function MyGameDetails({
+  game,
+  language,
+  isOwner,
+  isAdmin,
+}: {
+  game: GameSession;
+  language: Language;
+  isOwner: boolean;
+  isAdmin: boolean;
+}) {
   const weekday = weekdayName(game.date, language === "pt" ? "pt-BR" : "en-GB");
   const shortWeekday = weekday
     .slice(0, 3)
@@ -84,6 +106,7 @@ function MyGameDetails({ game, language, isOwner }: { game: GameSession; languag
         {game.time}{!isOwner && <> – {game.endTime}</>} ({game.duration} {localize("min", language)})
         {court && ` · ${court}`}
         {isOwner && <OrganizerBadge language={language} />}
+        {isAdmin && <GameAdminBadge />}
       </small>
     </div>
   );
@@ -524,15 +547,16 @@ export function GroupSelector({
                     game.createdByRole === "participant" &&
                     game.createdByUserId === user?.id &&
                     !adminGroupIds.includes(gameGroup?.id ?? "");
+                  const isAdmin = adminGroupIds.includes(gameGroup?.id ?? "");
                   return (
-                  <article className={`group-row my-game-row${isOwner ? " organizer-game-row" : ""}`} key={game.id}>
-                    <MyGameDetails game={game} language={language} isOwner={isOwner} />
+                  <article className={`group-row my-game-row${isOwner || isAdmin ? " organizer-game-row" : ""}`} key={game.id}>
+                    <MyGameDetails game={game} language={language} isOwner={isOwner} isAdmin={isAdmin} />
                     <div className="group-row-actions">
                       <button
                         className="session-action-button view"
                         onClick={() => onOpenMyGame(game)}
                       >
-                        {localize("Ver", language)}
+                        {localize(isOwner || isAdmin ? "Gerenciar" : "Ver", language)}
                       </button>
                       <button
                         className="session-action-button leave"
