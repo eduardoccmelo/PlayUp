@@ -97,7 +97,7 @@ Os jogos são ordenados cronologicamente. Um jogo encerrado sempre usa o mesmo l
 
 ## Fluxo atual do protótipo
 
-1. Crie um perfil local com nome e e-mail e confirme o código de demonstração. Perfis existentes entram com e-mail e código; os dados são restaurados no mesmo navegador.
+1. Crie um perfil local com nome e e-mail e confirme o código de demonstração. Um perfil novo recebe automaticamente o cenário seedado de demo (grupos como admin e participante, jogos futuros, espera e jogos passados); perfis existentes restauram seu snapshot no mesmo navegador.
 2. Em **Meus grupos**, crie/entre em grupos, gerencie aqueles em que você é admin ou veja aqueles em que é apenas participante.
 3. **Meus próximos jogos** mostra apenas jogos em que seu perfil está na lista principal ou de espera.
 4. Use um código de grupo para adicionar um grupo ou um código de jogo para adicionar um jogo sem entrar no grupo dele.

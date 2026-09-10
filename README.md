@@ -96,7 +96,7 @@ Games are displayed in chronological order. A completed game always uses the sam
 
 ## Current prototype flow
 
-1. Create a local profile with name and email, then verify the demo access code. Returning profiles sign in with email and that code; the profile snapshot is restored from the same browser.
+1. Create a local profile with name and email, then verify the demo access code. A new profile receives the seeded demo scenario automatically (admin and participant groups, upcoming games, waiting-list cases, and past games); returning profiles restore their snapshot from the same browser.
 2. Open **My groups** to create a group, join a group, manage groups where you are an admin, or browse groups where you are only a participant.
 3. **My next games** lists only games in which your profile is on the main or waiting list.
 4. Use a local group code to add a group, or a local game code to add a game without joining its group.

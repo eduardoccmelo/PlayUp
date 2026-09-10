@@ -241,7 +241,7 @@ export function PlayUpApp() {
   useEffect(() => {
     if (!currentUser?.devGodMode) return;
 
-    const attachDemoPlayer = (group: PlayerGroup, includeDemoGames: boolean) => {
+    const attachDemoPlayer = (group: PlayerGroup, gameIds: number[]) => {
       const existingPlayer =
         group.players.find((player) => player.ownerUserId === currentUser.id) ??
         group.players.find(
@@ -257,30 +257,23 @@ export function PlayUpApp() {
             player.id === ownedPlayer.id ? ownedPlayer : player,
           )
         : [...group.players, ownedPlayer];
-      const nextGames = includeDemoGames
+      const nextGames = gameIds.length
         ? group.games.map((gameSession) => {
             const isAlreadyListed =
               gameSession.playerIds.includes(ownedPlayer.id) ||
               gameSession.waitlistIds.includes(ownedPlayer.id);
             if (isAlreadyListed) return gameSession;
-            if (gameSession.id === 201) {
+            if (!gameIds.includes(gameSession.id)) return gameSession;
+            if (gameSession.playerIds.length >= gameSession.maxPlayers) {
               return {
                 ...gameSession,
                 waitlistIds: [...gameSession.waitlistIds, ownedPlayer.id],
               };
             }
-            if (gameSession.id === 202) {
-              return gameSession.playerIds.length < gameSession.maxPlayers
-                ? {
-                    ...gameSession,
-                    playerIds: [...gameSession.playerIds, ownedPlayer.id],
-                  }
-                : {
-                    ...gameSession,
-                    waitlistIds: [...gameSession.waitlistIds, ownedPlayer.id],
-                  };
-            }
-            return gameSession;
+            return {
+              ...gameSession,
+              playerIds: [...gameSession.playerIds, ownedPlayer.id],
+            };
           })
         : group.games;
       return { ...group, players: nextPlayers, games: nextGames };
@@ -288,9 +281,11 @@ export function PlayUpApp() {
 
     setGroups((currentGroups) =>
       currentGroups.map((group) => {
-        if (group.id === SEED_GROUP_ID) return attachDemoPlayer(group, false);
+        if (group.id === SEED_GROUP_ID) return attachDemoPlayer(group, [2]);
         if (group.id === PARTICIPANT_SEED_GROUP_ID)
-          return attachDemoPlayer(group, true);
+          return attachDemoPlayer(group, [201, 202]);
+        if (group.id === "weekend-friends-b9c2") return attachDemoPlayer(group, [301, 302]);
+        if (group.id === "morning-padel-c4d8") return attachDemoPlayer(group, [401]);
         return group;
       }),
     );
@@ -301,7 +296,11 @@ export function PlayUpApp() {
             ...user,
             devGodMode: false,
             adminGroupIds: [
-              ...new Set([...(user.adminGroupIds ?? []), SEED_GROUP_ID]),
+              ...new Set([
+                ...(user.adminGroupIds ?? []),
+                SEED_GROUP_ID,
+                "weekend-friends-b9c2",
+              ]),
             ],
           },
     );
@@ -1104,7 +1103,7 @@ export function PlayUpApp() {
             email,
             emailVerified: true,
             adminGroupIds: [],
-            devGodMode: false,
+            devGodMode: true,
             createdAt: new Date().toISOString(),
           },
     );
