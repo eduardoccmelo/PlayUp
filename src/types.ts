@@ -9,17 +9,30 @@ export type CurrentUser = {
   adminGroupIds?: string[];
   leftGroupIds?: string[];
   devGodMode: boolean;
+  /** Seed version whose complete demonstration profile was last hydrated. */
+  demoSeedVersion?: number;
   createdAt: string;
 };
-export type Player = { id: number; name: string; ownerUserId?: string; isGuest?: boolean; level: number; mobility: Mobility; condition: Condition; position: Position; };
+export type Player = {
+  id: number;
+  name: string;
+  ownerUserId?: string;
+  /** A player created by an organizer, without a verified app account. */
+  isGuest?: boolean;
+  /** A verified account may be restricted to one game instead of the group. */
+  accessScope?: "group" | "game";
+  level: number;
+  mobility: Mobility;
+  condition: Condition;
+  position: Position;
+};
 export type ParticipationRequest = {
   id: number;
   name: string;
-  requesterUserId?: string;
-  gameId?: number;
-  playerId?: number;
-  paymentConfirmed?: boolean;
-  type?: "join" | "leave" | "payment";
+  gameId: number;
+  playerId: number;
+  paymentConfirmed: boolean;
+  type: "payment";
 };
 export type BalancedTeams = { teamA: Player[]; teamB: Player[]; sumA: number; sumB: number; };
 export type BalanceHistoryEntry = {

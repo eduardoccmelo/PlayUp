@@ -1,11 +1,14 @@
 export function getStoredValue<T>(key: string, fallback: T): T {
   const savedValue = localStorage.getItem(key);
 
-  if (!savedValue) {
+  if (!savedValue) return fallback;
+
+  try {
+    return JSON.parse(savedValue) as T;
+  } catch {
+    localStorage.removeItem(key);
     return fallback;
   }
-
-  return JSON.parse(savedValue) as T;
 }
 
 export function saveStoredValue<T>(key: string, value: T) {
@@ -20,5 +23,10 @@ export function readSampleData<T>(key: string, fallback: T): T {
     return fallback;
   }
 
-  return JSON.parse(savedValue) as T;
+  try {
+    return JSON.parse(savedValue) as T;
+  } catch {
+    saveStoredValue(key, fallback);
+    return fallback;
+  }
 }

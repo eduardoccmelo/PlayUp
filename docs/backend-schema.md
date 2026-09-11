@@ -11,7 +11,7 @@ This document specifies a relational backend for the current PlayUp flow:
 - group invitations for admins and participants, plus manual group-code entry;
 - game invitations and manual game-code entry;
 - guests who can access only a specific game;
-- access requests, approval, waiting lists, payment state, and self-removal;
+- game-only access, waiting lists, payment state, and self-removal;
 - admin notifications, including payment updates and bulk actions.
 
 **Recommended database:** PostgreSQL 15+. Use JSON for API transport, but keep permissions, memberships, history, and state transitions normalized in relational tables.
@@ -32,7 +32,7 @@ The access code behaves like a password: only its hash is stored, it is never sh
 | admin | Administrator of one group; never a global role. |
 | participant | Permanent group member without administration rights. |
 | game organizer | The game creator. A group admin organizes every game; a participant organizes only games they created. |
-| guest | Not a group member; may access one approved game only. |
+| guest | Not a group member; may access one invited game only. |
 | player | Sports profile/name on a game list. It may be linked to a user or created by an admin. |
 
 A user may be an admin in Group A, a participant in Group B, and a guest in Game C.
@@ -60,7 +60,7 @@ create extension if not exists citext;
 create type group_role as enum ('admin', 'participant');
 create type game_status as enum ('active', 'cancelled', 'finished', 'deleted');
 create type game_access_source as enum ('invite', 'manual_code');
-create type game_access_status as enum ('pending', 'approved', 'rejected', 'revoked');
+create type game_access_status as enum ('active', 'revoked');
 create type game_participant_status as enum (
   'confirmed', 'waiting_list', 'left', 'removed'
 );
@@ -68,7 +68,7 @@ create type invite_type as enum ('group_admin', 'group_participant', 'game_guest
 create type game_creator_role as enum ('admin', 'participant');
 create type team_balance_trigger as enum ('automatic', 'organizer', 'late_rebalance');
 create type notification_type as enum (
-  'game_access_requested', 'player_joined', 'player_left', 'payment_status_changed'
+  'player_joined', 'player_left', 'payment_status_changed'
 );
 ~~~
 
@@ -83,8 +83,6 @@ create table users (
   ) stored,
   email citext not null unique,
   email_verified_at timestamptz null,
-  access_code_hash text not null,
-  access_code_updated_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -104,7 +102,20 @@ create index user_sessions_active_idx
   on user_sessions(user_id) where revoked_at is null;
 ~~~
 
-Session tokens and access codes are accepted or returned only in dedicated flows; the database stores hashes only. Display names may repeat between users, but uniqueness within a group and an active game list is mandatory.
+~~~sql
+create table email_verification_tokens (
+  id uuid primary key default gen_random_uuid(),
+  email citext not null,
+  code_hash text not null,
+  purpose text not null check (purpose in ('sign_up', 'sign_in', 'change_email', 'invite_acceptance')),
+  invite_id uuid null,
+  expires_at timestamptz not null,
+  consumed_at timestamptz null,
+  created_at timestamptz not null default now()
+);
+~~~
+
+Each verification code is single-use and expires after five minutes. The invite itself may remain active indefinitely; the token proves control of the email for that one acceptance. Session tokens and verification codes are accepted or returned only in dedicated flows; the database stores hashes only. Display names may repeat between users, but uniqueness within a group and an active game list is mandatory.
 
 ### Groups and memberships
 
@@ -167,7 +178,7 @@ create unique index player_profiles_one_owned_group_profile_idx
   where group_id is not null and owner_user_id is not null;
 ~~~
 
-Group profiles may exist without an account. `is_guest = true` identifies a manually created/admin-managed player with no linked user account. When a user joins a group, the service creates or links one owned profile in that group; Join then uses it automatically. An approved guest receives an owned profile and cannot browse the group directory.
+Group profiles may exist without an account. `is_guest = true` identifies a manually created/admin-managed **Guest** with no linked user account; the UI must label it `Convidado`/`Guest`. When a user joins a group, the service creates or links one owned profile in that group; Join then uses it automatically. A verified user who enters by game code receives or reuses an owned profile with game-only access and cannot browse the group directory; it is not a manual Guest.
 
 ### Games and access
 
@@ -205,25 +216,18 @@ create table user_game_accesses (
   game_id uuid not null references games(id) on delete cascade,
   user_id uuid not null references users(id) on delete cascade,
   source game_access_source not null,
-  status game_access_status not null default 'pending',
+  status game_access_status not null default 'active',
   requested_player_name text not null check (char_length(requested_player_name) between 1 and 80),
-  reviewed_by_user_id uuid null references users(id),
-  reviewed_at timestamptz null,
-  rejection_reason text null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (game_id, user_id),
-  check (
-    (status in ('approved', 'rejected', 'revoked') and reviewed_at is not null)
-    or status = 'pending'
-  )
+  unique (game_id, user_id)
 );
 
 create index user_game_accesses_user_idx
   on user_game_accesses(user_id, status, created_at desc);
 ~~~
 
-This table powers My next games for people who are not group members. Group members derive access from active membership. A guest request creates a pending row; approval creates or reuses the guest profile but does not add them to the game list.
+This table powers My next games for people who are not group members. Group members derive access from active membership. A verified game invite/code creates or reuses a game-only profile, immediately adds that profile to the main list or waiting list, and never adds it to the group directory.
 
 `created_by_role` is captured from the creator's active group membership when the game is created. It is not a global user role. An active group admin can manage all group games. An active participant can create a game and is the organizer only of a game where `created_by_user_id` is their user id and `created_by_role = 'participant'`; they do not acquire group-admin powers.
 
@@ -356,7 +360,7 @@ create table notification_recipients (
 );
 ~~~
 
-Every active group admin receives their own recipient row. Dismissing a message affects only that admin. Approve all must approve pending requests in one transaction; dismiss all sets dismissed_at only for the current admin.
+Every active group admin receives their own recipient row. Dismissing a message affects only that admin. Dismiss all sets `dismissed_at` only for the current admin's recipient rows.
 
 ## Mandatory business rules
 
@@ -366,11 +370,10 @@ Every active group admin receives their own recipient row. Dismissing a message 
 4. Active group members may invite a guest to a game they can access.
 5. A group member joins using their linked profile, without approval. A full game places them in the waiting list.
 6. Guests never receive the group directory.
-7. A game code/link creates pending access. The game appears in My next games, but its actions are blocked.
-8. Only a group admin may approve or reject guest access.
-9. Approval grants the guest only that game, never a group membership.
-10. Join, leave, and payment changes notify all active group admins.
-11. A participant may update only their own payment state, except while acting as organizer of their own game under rule 3.
+7. A game code/link requires a verified profile and immediately adds its game-only profile to the main list or waiting list. It never grants group membership or group-directory access.
+8. A game-only user may update only their own payment and remove only their own entry.
+9. Join, leave, and payment changes notify all active group admins.
+10. A participant may update only their own payment state, except while acting as organizer of their own game under rule 3.
 12. Names are unique, ignoring case and repeated spaces, inside each group and active game list.
 13. Changing a group passcode requires the current passcode and does not invalidate existing memberships.
 14. Balancing includes only paid confirmed main-list participants. Standard quota: two balances for an admin-created game, one for a participant-created game; automatic and manual balances share it. One final manual rebalance is available only in the last 15 minutes before the game. Roster/payment changes do not reset either quota.
@@ -404,10 +407,7 @@ DELETE /v1/games/:gameId
 POST   /v1/games/lookup
 GET    /v1/me/games
 POST   /v1/games/:gameId/invites
-POST   /v1/games/:gameId/access-requests
-POST   /v1/games/:gameId/access-requests/:requestId/approve
-POST   /v1/games/:gameId/access-requests/:requestId/reject
-POST   /v1/games/:gameId/access-requests/approve-all
+POST   /v1/games/join-by-code
 POST   /v1/games/:gameId/participants
 PATCH  /v1/games/:gameId/participants/:participantId/payment
 POST   /v1/games/:gameId/participants/:participantId/leave
@@ -442,7 +442,7 @@ Return calculated permissions; the frontend must not infer authorization from ID
   "game": { "id": "uuid", "location": "Court 3", "status": "active" },
   "viewerAccess": {
     "kind": "participant_organizer",
-    "status": "pending",
+    "status": "active",
     "canViewDetails": true,
     "canViewGroupPlayers": false,
     "canViewPlayerSkills": false,
@@ -455,15 +455,15 @@ Return calculated permissions; the frontend must not infer authorization from ID
 }
 ~~~
 
-For a guest awaiting approval, `kind` is `guest`, `status` is `pending`, and all game actions stay false. For an admin, `canManageGame` and group capabilities are true. For a participant organizer, `canManageGame` is true only on their own game while all group capabilities remain false.
+For a verified game-only user, `kind` is `guest`, `status` is `active`, `canUpdateOwnPayment` is true, and all group capabilities stay false. For an admin, `canManageGame` and group capabilities are true. For a participant organizer, `canManageGame` is true only on their own game while all group capabilities remain false.
 
 ## Security and implementation notes
 
 - Use UUIDs and cryptographically random tokens; never expose sequential database IDs.
 - Store passcodes and tokens only with Argon2id (preferred) or bcrypt hashes.
 - Enforce authorization on the server, never only in the frontend.
-- Support invitation expiry, revocation, and usage limits.
-- Record the admin who approved or rejected each request.
+- Keep invitations independently revocable and optionally usage-limited. An invitation may be permanent; only the e-mail verification token expires after five minutes.
+- Record the admin who triggered a manual team balance and all payment-status notifications.
 - Use transactions for joins, leaves, waiting-list promotion, payment state, and auto-cancellation.
 - If Postgres is directly exposed, apply row-level security. With a dedicated API, keep the same rules in the service layer.
 
@@ -473,10 +473,10 @@ For a guest awaiting approval, `kind` is `guest`, `status` is `pending`, and all
 
 Este documento fica em inglês como referência principal de implementação. Resumo das decisões:
 
-- Cada pessoa terá um perfil com **nome, e-mail e código de acesso** enviado por e-mail; o código pode ser regenerado.
+- Cada pessoa terá um perfil com **nome, e-mail e código de acesso** enviado por e-mail. Cada código é de uso único, pode ser regenerado e expira após cinco minutos; ele não é uma senha permanente.
 - Uma pessoa pode ser admin de um grupo e somente participante de outro. Admin não é um papel global.
 - Participante de um grupo entra no jogo com o próprio perfil, sem aprovação. Se estiver cheio, entra na lista de espera.
-- Guest recebe acesso apenas ao jogo convidado: solicita entrada com o nome, fica pendente e só usa as ações do jogo após aprovação de um admin.
+- Usuário verificado com acesso somente ao jogo recebe esse escopo ao usar o convite/código do jogo; entra diretamente na lista principal ou de espera e não ganha grupo. Já **Convidado/Guest** é o jogador criado manualmente, sem conta/e-mail, e deve ser identificado na lista.
 - A pessoa pode sair apenas da própria entrada; admin remove outras pessoas pelo gerenciamento.
 - Nomes não podem repetir dentro de um grupo nem de uma lista ativa de jogo.
 - Um participante do grupo pode criar e organizar somente o próprio jogo, sem se tornar admin do grupo. Admin gerencia todos os jogos; organizador participante administra apenas lista, pagamentos, criação de jogadores e times do seu jogo. Atributos técnicos e estatísticas do grupo permanecem ocultos para ele.

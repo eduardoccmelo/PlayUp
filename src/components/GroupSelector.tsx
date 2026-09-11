@@ -39,7 +39,6 @@ type GroupSelectorProps = {
   onAddMyGame: (code: string) => string | null;
   onOpenMyGame: (game: GameSession) => void;
   onLeaveMyGame: (game: GameSession) => void;
-  onLeaveGroup: (group: PlayerGroup) => void;
 };
 
 type PasswordFieldProps = {
@@ -175,7 +174,6 @@ export function GroupSelector({
   onAddMyGame,
   onOpenMyGame,
   onLeaveMyGame,
-  onLeaveGroup,
 }: GroupSelectorProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
@@ -190,7 +188,6 @@ export function GroupSelector({
   const [newPasscode, setNewPasscode] = useState("");
   const [passcodeError, setPasscodeError] = useState("");
   const [groupToRename, setGroupToRename] = useState<PlayerGroup | null>(null);
-  const [groupToLeave, setGroupToLeave] = useState<PlayerGroup | null>(null);
   const [groupInvite, setGroupInvite] = useState<GroupInvite | null>(null);
   const [inviteCodeCopied, setInviteCodeCopied] = useState<
     "players" | "admins" | null
@@ -207,13 +204,19 @@ export function GroupSelector({
       (adminGroupIds.includes(group.id) ||
         group.players.some(
           (player) =>
-            player.ownerUserId === user?.id ||
+            (player.accessScope !== "game" && player.ownerUserId === user?.id) ||
             (user !== null &&
+              player.accessScope !== "game" &&
               normalizeText(player.name) === normalizeText(user.displayName)),
         )),
   );
   const adminGroupFromCode = groups.find(
     (group) =>
+      normalizeText(joinCode) === normalizeText(groupAdminInviteCode(group)),
+  );
+  const groupFromCode = groups.find(
+    (group) =>
+      normalizeText(joinCode) === normalizeText(groupPlayerInviteCode(group)) ||
       normalizeText(joinCode) === normalizeText(groupAdminInviteCode(group)),
   );
   const availableGroups = groups
@@ -222,6 +225,7 @@ export function GroupSelector({
         !memberGroups.some((memberGroup) => memberGroup.id === group.id),
     )
     .slice(0, 5);
+  const availableAdminGroups = availableGroups.slice(0, 2);
   const availableGames = groups
     .flatMap((group) => group.games.map((game) => ({ group, game })))
     .filter(
@@ -232,10 +236,6 @@ export function GroupSelector({
 
   const createGroup = (event: FormEvent) => {
     event.preventDefault();
-    if (memberGroups.length >= 5) {
-      setGroupError("Você pode participar de até 5 grupos no momento.");
-      return;
-    }
     if (!name.trim() || !passcode.trim()) return;
     if (
       groups.some((group) => normalizeText(group.name) === normalizeText(name))
@@ -397,6 +397,14 @@ export function GroupSelector({
                   setJoinError("");
                 }}
               />
+              {groupFromCode && user && (
+                <p className="group-join-profile-summary">
+                  {language === "pt" ? "Você entrará em " : "You will join "}
+                  <strong>{groupFromCode.name}</strong>
+                  {language === "pt" ? " como " : " as "}
+                  <strong>{user.displayName}</strong> ({user.email}).
+                </p>
+              )}
               {adminGroupFromCode && (
                 <>
                   <PasswordField
@@ -450,7 +458,7 @@ export function GroupSelector({
             <form onSubmit={addMyGame}>
               <p>
                 {localize(
-                  "Cole o código do jogo para enviar uma solicitação ao admin.",
+                  "Cole o código do jogo para adicioná-lo à sua lista.",
                   language,
                 )}
               </p>
@@ -549,13 +557,20 @@ export function GroupSelector({
       </section>
       {availableGroups.length > 0 && (
         <section className="available-code-copy">
-          <strong>
+          <span className="available-code-label">
             {language === "pt"
               ? "Outros códigos de grupos disponíveis"
               : "Other group codes available"}
-          </strong>
+          </span>
           <span className="available-code-list">
             {availableGroups.map(groupPlayerInviteCode).join(", ")}
+            {availableAdminGroups.length > 0 && " · "}
+            {availableAdminGroups
+              .map(
+                (group) =>
+                  `${groupAdminInviteCode(group)} (${language === "pt" ? "Admin" : "Admin"})`,
+              )
+              .join(", ")}
           </span>
         </section>
       )}
@@ -640,11 +655,11 @@ export function GroupSelector({
           </section>
           {availableGames.length > 0 && (
             <section className="available-code-copy">
-              <strong>
+              <span className="available-code-label">
                 {language === "pt"
                   ? "Outros códigos de jogos disponíveis"
                   : "Other game codes available"}
-              </strong>
+              </span>
               <span className="available-code-list">
                 {availableGames
                   .map(({ group, game }) => gameInviteCode(group, game))
@@ -743,37 +758,6 @@ export function GroupSelector({
                 </button>
               </div>
             </form>
-          </section>
-        </div>
-      )}
-      {groupToLeave && (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            aria-modal="true"
-            className="confirm-dialog group-auth-modal"
-            role="dialog"
-          >
-            <p className="form-mode">{localize("SAIR DO GRUPO", language)}</p>
-            <p>
-              {localize("Você deixará de ver os jogos deste grupo.", language)}
-            </p>
-            <div className="confirm-dialog-actions">
-              <button
-                className="secondary"
-                onClick={() => setGroupToLeave(null)}
-              >
-                {localize("Cancelar", language)}
-              </button>
-              <button
-                className="session-action-button delete"
-                onClick={() => {
-                  onLeaveGroup(groupToLeave);
-                  setGroupToLeave(null);
-                }}
-              >
-                {localize("Sair do grupo", language)}
-              </button>
-            </div>
           </section>
         </div>
       )}

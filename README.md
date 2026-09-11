@@ -4,7 +4,7 @@
 
 PlayUp is a web application for organizing group sports games. One profile can manage some groups, participate in others, and keep a separate list of upcoming games.
 
-> This project is currently an MVP. Data, permissions, and profile recovery are simulated in browser storage. The email/access-code screens are a local UI demo (`123456`); there is no backend, real email delivery, authentication, or cross-device synchronization yet.
+> This project is currently an MVP. Data, permissions, and profile recovery are simulated in browser storage. The email/access-code screens generate a local one-time demo code that expires after five minutes; there is no backend, real email delivery, authentication, or cross-device synchronization yet.
 
 ## Contents
 
@@ -39,7 +39,7 @@ PlayUp is a web application for organizing group sports games. One profile can m
 - Create, edit, view, and delete games.
 - Maintain a group-wide player directory.
 - Edit every player attribute or remove a player from the directory with confirmation.
-- Approve participant join requests.
+- Review and dismiss payment-status notifications.
 - Add or remove players from an individual game list.
 - Track payment status with a checkbox.
 - View group statistics: total games, active games, and completed-game participations per player.
@@ -51,8 +51,8 @@ PlayUp is a web application for organizing group sports games. One profile can m
 - View groups and personal upcoming games from one dashboard.
 - A group member joins with their linked player name without approval.
 - When a game is full, joining places the player on its waiting list.
-- A non-member can add a game by code, see it in read-only mode, and request access.
-- A guest has game actions only after an administrator approves the request.
+- A non-member can add a game by code, verify their identity, and join the main or waiting list without joining its group.
+- A game-only user can manage only their own entry and payment state.
 - A participant can update only their own payment checkbox and remove only their own name from a game.
 - A group participant may create a game. They gain organizer controls only for games they created: create players, manage that game's list and payment state, and generate teams. They never gain group settings, statistics, player-directory attributes, or control of other games.
 - In a participant-organized game, player levels, position, condition, speed, and scoring are hidden from the organizer UI.
@@ -100,7 +100,7 @@ Games are displayed in chronological order. A completed game always uses the sam
 2. Open **My groups** to create a group, join a group, manage groups where you are an admin, or browse groups where you are only a participant.
 3. **My next games** lists only games in which your profile is on the main or waiting list.
 4. Use a local group code to add a group, or a local game code to add a game without joining its group.
-5. Group members join a game immediately with their own profile. Guests request access and remain pending until an admin approves them.
+5. Group members join immediately with their own profile. A verified game-code recipient joins the main list or waiting list directly, without becoming a group member.
 
 The temporary code formats are validated against local data:
 
@@ -114,11 +114,11 @@ These formats are for UI testing only. Production must use random, revocable ser
 
 ## How to use
 
-1. Create, sign in to, or edit your local profile. The prototype uses `123456` as the access-code demo.
+1. Create, sign in to, or edit your local profile. The prototype generates a new visible demo access code for each request; it expires after five minutes.
 2. From **My groups**, create/join a group or open its games.
-3. If you are an admin of that group, use **Manage** to create games, maintain players, see statistics, and process guest requests. If you are only a participant, you can still create a game; its organizer controls apply only to that game.
+3. If you are an admin of that group, use **Manage** to create games, maintain players, see statistics, and review payment-status notifications. If you are only a participant, you can still create a game; its organizer controls apply only to that game.
 4. From **My next games**, view a game you are already attending, update your own payment state, or leave the list.
-5. Use **I have a game code** for a game outside your groups. In this prototype, the code opens a local demo game; the backend flow will request approval for a true guest.
+5. Use **I have a game code** for a game outside your groups. After identity verification, the code places you directly in its main list or waiting list while keeping access limited to that game.
 
 ## Game rules
 

@@ -15,7 +15,7 @@ type LandingPageProps = {
   onOpenProfile?: () => void;
   profileOnly?: boolean;
   openProfile?: boolean;
-  onProfileOpened?: () => void;
+  onCloseProfile?: () => void;
   onLogout: () => void;
 };
 
@@ -49,6 +49,8 @@ const content = {
     enterDescription: "View your games, groups, and organizer tools.",
   },
 };
+const createVerificationCode = () =>
+  Math.floor(100000 + Math.random() * 900000).toString();
 
 export function LandingPage({
   language,
@@ -59,18 +61,20 @@ export function LandingPage({
   onOpenProfile,
   profileOnly = false,
   openProfile = false,
-  onProfileOpened,
+  onCloseProfile,
   onLogout,
 }: LandingPageProps) {
   const labels = content[language];
   const [name, setName] = useState(user?.displayName ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
-  const [isEditing, setIsEditing] = useState(false);
   const [step, setStep] = useState<
     "details" | "verify" | "verify-current-email" | "verify-new-email"
   >("details");
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-up");
   const [accessCode, setAccessCode] = useState("");
+  const [issuedAccessCode, setIssuedAccessCode] = useState("");
+  const [accessCodeExpiresAt, setAccessCodeExpiresAt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const [profileError, setProfileError] = useState("");
   const [resendConfirmation, setResendConfirmation] = useState(false);
   const profileChanged =
@@ -79,21 +83,14 @@ export function LandingPage({
   const isEmailUpdate = Boolean(
     user?.emailVerified && user.email !== email.trim().toLowerCase(),
   );
+  const isEditing = profileOnly && openProfile;
   useEffect(() => {
-    setName(user?.displayName ?? "");
-    setEmail(user?.email ?? "");
-    setStep("details");
-    setAccessCode("");
-  }, [user?.id, user?.displayName, user?.email]);
-  useEffect(() => {
-    if (profileOnly && openProfile) {
-      if (!user?.emailVerified) setMode("sign-up");
-      setIsEditing(true);
-      onProfileOpened?.();
-    }
-  }, [onProfileOpened, openProfile, profileOnly, user?.emailVerified]);
+    if (step === "details" || !accessCodeExpiresAt) return;
+    const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [accessCodeExpiresAt, step]);
   const closeProfile = () => {
-    setIsEditing(false);
+    onCloseProfile?.();
     setStep("details");
     setAccessCode("");
     setProfileError("");
@@ -101,6 +98,17 @@ export function LandingPage({
     setName(user?.displayName ?? "");
     setEmail(user?.email ?? "");
   };
+  const issueAccessCode = () => {
+    setIssuedAccessCode(createVerificationCode());
+    setAccessCodeExpiresAt(Date.now() + 5 * 60 * 1000);
+  };
+  const remainingCodeSeconds = Math.max(
+    0,
+    Math.floor((accessCodeExpiresAt - now) / 1000),
+  );
+  const remainingCodeTime = `${Math.floor(remainingCodeSeconds / 60)}:${String(
+    remainingCodeSeconds % 60,
+  ).padStart(2, "0")}`;
   const sendAccessCode = () => {
     if ((mode === "sign-up" || user?.emailVerified) && !name.trim()) {
       setProfileError("Informe seu nome.");
@@ -122,10 +130,15 @@ export function LandingPage({
     setProfileError("");
     setAccessCode("");
     setResendConfirmation(false);
+    issueAccessCode();
     setStep(isEmailUpdate ? "verify-current-email" : "verify");
   };
   const verifyAccessCode = () => {
-    if (accessCode !== "123456") {
+    if (!issuedAccessCode || Date.now() > accessCodeExpiresAt) {
+      setProfileError("O código de acesso expirou. Envie um novo código.");
+      return;
+    }
+    if (accessCode !== issuedAccessCode) {
       setProfileError("Código de acesso inválido.");
       return;
     }
@@ -133,6 +146,7 @@ export function LandingPage({
       setAccessCode("");
       setProfileError("");
       setResendConfirmation(false);
+      issueAccessCode();
       setStep("verify-new-email");
       return;
     }
@@ -345,7 +359,9 @@ export function LandingPage({
               />
             </label>
             <small className="profile-demo-code">
-              {localize("Demonstração sem backend: use 123456.", language)}
+              {language === "pt"
+                ? `Demonstração sem backend: use ${issuedAccessCode}. Expira em ${remainingCodeTime}.`
+                : `Backend-free demo: use ${issuedAccessCode}. Expires in ${remainingCodeTime}.`}
             </small>
             {resendConfirmation && (
               <small className="success profile-resend-confirmation">
@@ -369,6 +385,7 @@ export function LandingPage({
                 onClick={() => {
                   setAccessCode("");
                   setProfileError("");
+                  issueAccessCode();
                   setResendConfirmation(true);
                 }}
               >

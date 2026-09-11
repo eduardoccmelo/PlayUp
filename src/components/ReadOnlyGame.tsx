@@ -67,7 +67,14 @@ export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGame
                 const isPaid = game.paidPlayerIds.includes(player.id);
                 return (
                   <div className={`readonly-row ${isPaid ? "is-paid" : ""}`} key={player.id}>
-                    <strong>{index + 1} - {player.name}</strong>
+                    <strong>
+                      {index + 1} - {player.name}
+                      {player.isGuest && (
+                        <small className="player-identity-tag">
+                          ({language === "pt" ? "Convidado" : "Guest"})
+                        </small>
+                      )}
+                    </strong>
                     <span
                       aria-label={localize(isPaid ? "Pago" : "Pendente", language)}
                       className={`readonly-payment-mark ${isPaid ? "paid" : "pending"}`}
@@ -82,6 +89,11 @@ export function ReadOnlyGame({ game, players, language, onDelete }: ReadOnlyGame
                 {waitlistedPlayers.map((player, index) => (
                   <p className="wait-row" key={player.id}>
                     {game.playerIds.length + index + 1} - {player.name}
+                    {player.isGuest && (
+                      <small className="player-identity-tag">
+                        ({language === "pt" ? "Convidado" : "Guest"})
+                      </small>
+                    )}
                   </p>
                 ))}
               </section>

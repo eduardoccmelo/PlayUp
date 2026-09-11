@@ -4,7 +4,7 @@
 
 PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um mesmo perfil pode gerenciar alguns grupos, participar de outros e manter uma lista própria dos próximos jogos.
 
-> O projeto está atualmente em modo MVP. Dados, permissões e recuperação de perfil são simulados no navegador. As telas de e-mail/código de acesso são uma demonstração local (`123456`); ainda não há backend, envio real de e-mail, autenticação real nem sincronização entre dispositivos.
+> O projeto está atualmente em modo MVP. Dados, permissões e recuperação de perfil são simulados no navegador. As telas de e-mail/código de acesso geram um código local de demonstração, de uso único e com validade de cinco minutos; ainda não há backend, envio real de e-mail, autenticação real nem sincronização entre dispositivos.
 
 ## Índice
 
@@ -40,7 +40,7 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 - Cadastro geral de jogadores do grupo.
 - Edição completa dos atributos de cada jogador.
 - Exclusão de um jogador do cadastro geral, com confirmação.
-- Aprovação de solicitações de participação enviadas por participantes.
+- Consulta e dispensa de notificações de alteração de pagamento.
 - Inclusão e remoção de jogadores da lista de cada jogo.
 - Controle de pagamento por checkbox.
 - Estatísticas do grupo: total de jogos, jogos ativos e participações de cada jogador em jogos concluídos.
@@ -52,8 +52,8 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 - Painel único para grupos e próximos jogos pessoais.
 - Membro do grupo entra no jogo com o próprio nome, sem aprovação.
 - Se o jogo estiver cheio, a entrada vai para a lista de espera.
-- Quem não é membro pode adicionar um jogo por código, vê-lo em modo leitura e solicitar acesso.
-- Guest só usa as ações do jogo depois da aprovação de um admin.
+- Quem não é membro pode adicionar um jogo por código, confirmar a identidade e entrar na lista principal ou de espera sem entrar no grupo.
+- Usuário com acesso somente ao jogo altera apenas a própria vaga e pagamento.
 - Cada participante altera somente seu próprio pagamento e remove somente o próprio nome.
 - Um participante do grupo pode criar um jogo. Ele recebe controles de organizador somente nos jogos que criou: criar jogadores, gerenciar a lista e pagamentos daquele jogo e gerar times. Ele nunca recebe configurações do grupo, estatísticas, atributos do cadastro geral ou controle dos demais jogos.
 - Em jogos criados por participante, nível, posição, condição, velocidade e pontos dos jogadores ficam ocultos para esse organizador.
@@ -101,7 +101,7 @@ Os jogos são ordenados cronologicamente. Um jogo encerrado sempre usa o mesmo l
 2. Em **Meus grupos**, crie/entre em grupos, gerencie aqueles em que você é admin ou veja aqueles em que é apenas participante.
 3. **Meus próximos jogos** mostra apenas jogos em que seu perfil está na lista principal ou de espera.
 4. Use um código de grupo para adicionar um grupo ou um código de jogo para adicionar um jogo sem entrar no grupo dele.
-5. Membros entram no jogo imediatamente; guests solicitam acesso e ficam pendentes até um admin aprovar.
+5. Membros entram no jogo imediatamente. Quem recebeu um código de jogo e confirmou a identidade entra diretamente na lista principal ou de espera, sem virar membro do grupo.
 
 Os formatos temporários são validados contra os dados locais:
 
@@ -115,11 +115,11 @@ Esses códigos servem somente para testar a interface. Em produção, devem ser 
 
 ## Como usar
 
-1. Crie, entre ou edite seu perfil local. O protótipo usa `123456` como código de acesso de demonstração.
+1. Crie, entre ou edite seu perfil local. O protótipo gera um novo código de acesso de demonstração a cada solicitação, válido por cinco minutos.
 2. Em **Meus grupos**, crie/entre em um grupo ou abra os jogos dele.
-3. Se você for admin daquele grupo, use **Gerenciar** para criar jogos, manter jogadores, ver estatísticas e processar solicitações. Se for apenas participante, ainda pode criar um jogo; os controles de organizador valem somente para esse jogo.
+3. Se você for admin daquele grupo, use **Gerenciar** para criar jogos, manter jogadores, ver estatísticas e consultar notificações de pagamento. Se for apenas participante, ainda pode criar um jogo; os controles de organizador valem somente para esse jogo.
 4. Em **Meus próximos jogos**, veja jogos em que você participa, altere seu próprio pagamento ou saia da lista.
-5. Use **Tenho um código de jogo** para um jogo fora dos seus grupos. No protótipo, o código abre um jogo local; no backend, o guest solicitará aprovação.
+5. Use **Tenho um código de jogo** para um jogo fora dos seus grupos. Após confirmar a identidade, o código coloca a pessoa diretamente na lista principal ou de espera, com acesso limitado àquele jogo.
 
 ## Regras do jogo
 

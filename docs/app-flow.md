@@ -15,14 +15,13 @@ flowchart TD
   F --> A
 ```
 
-The current front end demonstrates email verification with code `123456` in local storage. The backend replaces this with a real email and session flow. Logout clears the local session; a future sign-in restores the account data from the backend.
+The local front end generates a new six-digit demo verification code for every request and expires it after five minutes. The backend replaces this with real email delivery, one-time token hashes, and sessions. Logout clears the local session; a future sign-in restores the account data from the backend.
 
 ## Groups and game access
 
 ```mermaid
 flowchart TD
-  A[Dashboard] --> B[My groups]
-  A --> C[My next games]
+  A[Dashboard] --> B[My groups and My next games]
   B --> D[Create group]
   B --> E[Join group: invitation link or group code]
   E --> F{Access type}
@@ -30,13 +29,11 @@ flowchart TD
   F -- Participant code --> H[Participant membership]
   G --> I[Group management]
   H --> J[Group game list]
-  C --> K[Add game: invitation link or game code]
+  B --> K[Add game: invitation link or game code]
   K --> L{Member of the game's group?}
   L -- Yes --> J
-  L -- No --> M[Read-only game and access request]
-  M --> N{Admin approves?}
-  N -- Yes --> O[Game-only guest access]
-  N -- No / pending --> P[Saved pending game, actions disabled]
+  L -- No --> M[Verify name + email]
+  M --> O[Game-only access and direct list entry]
 ```
 
 There is no global “admin account” mode. A user can be an admin in Group A, a participant in Group B, and have guest-only access to Game C.
@@ -45,13 +42,13 @@ There is no global “admin account” mode. A user can be an admin in Group A, 
 
 | Capability | Group admin | Group participant | Guest |
 | --- | --- | --- | --- |
-| View active group games | Yes | Yes | Only their approved game |
+| View active group games | Yes | Yes | Only their invited game |
 | Create a game | Yes | Yes | No |
 | Edit/delete group or see statistics | Yes | No | No |
 | Maintain group player directory and attributes | Yes | No | No |
 | Manage any group game | Yes | No | No |
 | Manage a game created by themselves | Yes | Yes | No |
-| Join/leave own game entry and update own payment | Yes | Yes | Only after approval |
+| Join/leave own game entry and update own payment | Yes | Yes | Yes |
 
 When a participant creates a game, the game records `createdByUserId` and `createdByRole: participant`. The creator becomes that game’s organizer only. They can create players, add/remove players in that game, mark payments, and balance teams. They do **not** become a group admin, cannot see player skill attributes, cannot see group statistics, and cannot manage games created by someone else. A group admin retains full management of every game in the group.
 
@@ -61,11 +58,9 @@ When a participant creates a game, the game records `createdByUserId` and `creat
 flowchart TD
   A[Join a game] --> B{Group member?}
   B -- Yes --> C[Use linked player profile]
-  B -- No --> D[Send name and access request]
-  D --> E{Approved by group admin?}
-  E -- No --> F[Pending game in My next games]
-  E -- Yes --> C
-  C --> G{Main list has capacity?}
+  B -- No --> D[Verify name + email and create game-only profile]
+  D --> G{Main list has capacity?}
+  C --> G
   G -- Yes --> H[Confirmed / payment pending]
   G -- No --> I[Waiting list]
   H --> J[Player may mark only their own payment]
@@ -73,7 +68,7 @@ flowchart TD
   K --> L[First waiting player promoted automatically]
 ```
 
-Names are unique case-insensitively within a group and an active game list. A group member joins immediately; no admin approval is required. A guest never gains group membership from game approval.
+Names are unique case-insensitively within a group and an active game list. A group member joins immediately; an invited non-member verifies their identity and is placed directly on the main or waiting list. Game-only access never grants group membership.
 
 ## Team balancing
 
@@ -96,9 +91,10 @@ Admin-created games show the latest trigger, the responsible admin when relevant
 
 ## Resumo em português
 
-1. A pessoa cria/entra no perfil por e-mail e código de acesso. No protótipo, isso é local e usa `123456`.
+1. A pessoa cria/entra no perfil por nome, e-mail e um código de acesso de uso único. No protótipo, o código é gerado localmente, vale cinco minutos e aparece como dica de demonstração.
 2. O painel unifica **Meus grupos** e **Meus próximos jogos**. Uma pessoa pode ser admin de um grupo, participante de outro e guest de um jogo específico.
-3. Grupo pode ser acessado por link/código: convite de admin exige senha; convite de participante não. Jogo pode ser acessado por link/código sem entrar no grupo; nesse caso o usuário vê o jogo e solicita acesso.
+3. Grupo pode ser acessado por link/código: convite de admin exige senha; convite de participante não. Jogo pode ser acessado por link/código sem entrar no grupo; após confirmar nome e e-mail, a pessoa entra diretamente na lista principal ou de espera.
 4. Admin administra o grupo inteiro. Participante também pode criar um jogo, mas vira organizador somente daquele jogo: lista, pagamentos, criação de jogadores e times. Não ganha estatísticas, atributos técnicos nem administração do grupo ou de outros jogos.
-5. Membro do grupo entra direto no jogo com o próprio perfil; se estiver cheio, vai para espera. Guest só entra após aprovação. Cada pessoa altera apenas o próprio pagamento e sai apenas da própria vaga.
+5. Membro do grupo entra direto no jogo com o próprio perfil; se estiver cheio, vai para espera. Quem recebeu apenas o convite do jogo tem esse mesmo acesso limitado ao jogo, sem entrar no grupo. Cada pessoa altera apenas o próprio pagamento e sai apenas da própria vaga.
 6. Balanceamento usa apenas jogadores confirmados e pagos. Jogo de admin tem duas gerações regulares; jogo criado por participante tem uma. Depois existe apenas um rebalanceamento manual final, liberado nos últimos 15 minutos antes do jogo. Mudanças na lista não reiniciam os limites.
+7. Jogador criado manualmente recebe a etiqueta **Convidado/Guest**: não possui conta nem acesso ao app. Um usuário com e-mail confirmado e acesso apenas a um jogo é um usuário registrado com escopo de jogo, não um convidado manual.

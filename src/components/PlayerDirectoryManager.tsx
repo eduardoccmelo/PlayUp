@@ -88,7 +88,15 @@ export function PlayerDirectoryManager({
         {players.length ? (
           sortedPlayers.map((player) => (
             <div key={player.id}>
-              <span>{player.name}{ownsPlayer(player) && ` (${localize("você", language)})`}</span>
+              <span>
+                {player.name}
+                {player.isGuest && (
+                  <small className="player-identity-tag">
+                    ({language === "pt" ? "Convidado" : "Guest"})
+                  </small>
+                )}
+                {ownsPlayer(player) && ` (${localize("você", language)})`}
+              </span>
               <button
                 className="session-action-button edit"
                 onClick={() => {

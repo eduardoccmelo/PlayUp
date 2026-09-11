@@ -5,7 +5,7 @@ export const SEED_GROUP_ID = "seed-dev";
 export const SEED_GROUP_NAME = "Test Group";
 export const SEED_GROUP_PASSCODE = "admin";
 export const PARTICIPANT_SEED_GROUP_ID = "city-night-7f3a";
-const SEED_VERSION = 8;
+export const SEED_VERSION = 11;
 
 const players: Player[] = [
   { id: 1, name: "Alex Morgan", level: 5, mobility: "rapido", condition: "boa", position: "ataque" },
@@ -31,7 +31,7 @@ const players: Player[] = [
   { id: 21, name: "Ursula Klein", level: 3, mobility: "rapido", condition: "boa", position: "neutro" },
   { id: 22, name: "Victor Santos", level: 2, mobility: "lento", condition: "neutro", position: "defesa" },
   { id: 23, name: "Wagner Lima", level: 5, mobility: "rapido", condition: "boa", position: "ataque" },
-  { id: 24, name: "Yasmin Rocha", level: 3, mobility: "neutro", condition: "neutro", position: "neutro" },
+  { id: 24, name: "Yasmin Rocha", isGuest: true, accessScope: "group", level: 3, mobility: "neutro", condition: "neutro", position: "neutro" },
 ];
 
 function dateFromToday(daysFromToday: number, yearsFromToday = 0) {
@@ -215,6 +215,7 @@ const communityPlayers: Player[] = [
   { id: 104, name: "Fernanda Alves", level: 2, mobility: "lento", condition: "ruim", position: "defesa" },
   { id: 105, name: "Gabriel Costa", level: 4, mobility: "neutro", condition: "boa", position: "ataque" },
   { id: 106, name: "Helena Souza", level: 3, mobility: "rapido", condition: "neutro", position: "neutro" },
+  { id: 107, name: "Renato Alves", isGuest: true, accessScope: "game", level: 3, mobility: "neutro", condition: "neutro", position: "neutro" },
 ];
 
 const neighborhoodPlayers: Player[] = [
@@ -293,7 +294,7 @@ export const seedGroups = (): PlayerGroup[] => [
     createdAt: new Date().toISOString(),
     players: communityPlayers,
     games: [
-      demoGame(201, 2, "Urban Sports Center", "B", [101, 102, 103, 104], [105], 4),
+      demoGame(201, 2, "Urban Sports Center", "B", [101, 102, 103, 104], [105, 107], 4),
       demoGame(202, 6, "Urban Sports Center", "A", [101, 103, 105, 106], []),
     ],
     requests: [],

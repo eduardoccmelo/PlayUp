@@ -37,6 +37,16 @@ export const translations: Record<
     "Verificar código": "Verify code",
     "Enviar novo código": "Send a new code",
     "Código de acesso inválido.": "Invalid access code.",
+    "O código de acesso expirou. Envie um novo código.":
+      "The access code expired. Send a new code.",
+    "Confirme seu nome e e-mail para solicitar participação.":
+      "Confirm your name and email before requesting to join.",
+    "Confirme seu nome e e-mail para entrar neste grupo.":
+      "Confirm your name and email before joining this group.",
+    "Confirme seu nome e e-mail para entrar neste jogo.":
+      "Confirm your name and email before joining this game.",
+    "Cole o código do jogo para adicioná-lo à sua lista.":
+      "Paste the game code to add it to your list.",
     "Código de grupo inválido.": "Invalid group code.",
     "Código de jogo inválido.": "Invalid game code.",
     "Informe um e-mail válido.": "Enter a valid email address.",
@@ -168,8 +178,6 @@ export const translations: Record<
       "Final balance triggered by the system.",
     "O limite foi atingido. O sistema gerará os times automaticamente 15 minutos antes do jogo.":
       "The limit has been reached. The system will generate teams automatically 15 minutes before the game.",
-    "Você pode participar de até 5 grupos no momento.":
-      "You can belong to up to 5 groups at the moment.",
     Estatísticas: "Statistics",
     "Total de jogos": "Total games",
     "Jogos ativos": "Active games",
