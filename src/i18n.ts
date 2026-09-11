@@ -48,6 +48,8 @@ export const translations: Record<
     "Cole o código do jogo para adicioná-lo à sua lista.":
       "Paste the game code to add it to your list.",
     "Código de grupo inválido.": "Invalid group code.",
+    "Este convite de admin pertence a outro participante.":
+      "This admin invitation belongs to another participant.",
     "Código de jogo inválido.": "Invalid game code.",
     "Informe um e-mail válido.": "Enter a valid email address.",
     "Organize a próxima": "Organize your next",
@@ -67,6 +69,24 @@ export const translations: Record<
     "Nenhum jogo passado": "No past games",
     "Nenhum jogo futuro": "No upcoming games",
     "Convidar admin": "Invite admin",
+    "Painel de admins": "Admin panel",
+    "Admins do grupo": "Group admins",
+    Criador: "Owner",
+    "Convidar participante como admin": "Invite a participant as admin",
+    "Gere um código individual para um participante existente. O convite mantém a participação atual e libera o papel de admin após a confirmação.":
+      "Generate an individual code for an existing participant. The invitation keeps their current membership and grants the admin role after confirmation.",
+    "Código de convite": "Invitation code",
+    "CONVIDAR ADMIN": "INVITE ADMIN",
+    Jogador: "Player",
+    "Gerar convite": "Generate invitation",
+    votos: "votes",
+    "Sem votos ainda": "No votes yet",
+    "Votação de atributos": "Attribute voting",
+    "Cada voto atualiza a média imediatamente. Você não pode ver nem votar seu próprio nível ou velocidade.":
+      "Each vote updates the average immediately. You cannot see or vote on your own level or speed.",
+    "Seu nível e velocidade são definidos pelos outros admins.":
+      "Your level and speed are defined by the other admins.",
+    "Média atual": "Current average",
     "Convidar admins": "Invite admins",
     "Convidar participante": "Invite participant",
     Compartilhar: "Share",
@@ -179,6 +199,8 @@ export const translations: Record<
     "O limite foi atingido. O sistema gerará os times automaticamente 15 minutos antes do jogo.":
       "The limit has been reached. The system will generate teams automatically 15 minutes before the game.",
     Estatísticas: "Statistics",
+    "Criador/Admin": "Owner/Admin",
+    "Painel do admin": "Admin panel",
     "Total de jogos": "Total games",
     "Jogos ativos": "Active games",
     "Participações por jogador": "Participations by player",

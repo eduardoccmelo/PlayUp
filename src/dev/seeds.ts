@@ -1,11 +1,33 @@
-import type { GameSession, Player, PlayerGroup } from "../types";
+import type { GameSession, GroupAdmin, Player, PlayerGroup, PlayerSkillVote } from "../types";
 import { getStoredValue, saveStoredValue } from "../services/browserStorage";
 
 export const SEED_GROUP_ID = "seed-dev";
 export const SEED_GROUP_NAME = "Test Group";
 export const SEED_GROUP_PASSCODE = "admin";
 export const PARTICIPANT_SEED_GROUP_ID = "city-night-7f3a";
-export const SEED_VERSION = 11;
+export const SEED_VERSION = 16;
+
+const seededAdmins = (
+  members: Array<[string, number, string, "owner" | "admin"]>,
+): GroupAdmin[] =>
+  members.map(([userId, playerId, displayName, role]) => ({
+    userId,
+    playerId,
+    displayName,
+    role,
+    joinedAt: "2026-01-01T12:00:00.000Z",
+  }));
+
+const seededVotes = (
+  votes: Array<[number, string, number?, (1 | 2 | 3)?]>,
+): PlayerSkillVote[] =>
+  votes.map(([playerId, adminUserId, level, mobility], index) => ({
+    playerId,
+    adminUserId,
+    level,
+    mobility,
+    updatedAt: new Date(2026, 0, 1, 12, index).toISOString(),
+  }));
 
 const players: Player[] = [
   { id: 1, name: "Alex Morgan", level: 5, mobility: "rapido", condition: "boa", position: "ataque" },
@@ -206,6 +228,22 @@ export const seedGroup = (): PlayerGroup => ({
   players: players.map((player) => ({ ...player })),
   games: createTestGames(),
   requests: [],
+  admins: seededAdmins([
+    ["seed-alex", 1, "Alex Morgan", "owner"],
+    ["seed-ben", 2, "Ben Carter", "admin"],
+    ["seed-charlie", 3, "Charlie Adams", "admin"],
+  ]),
+  skillVotes: seededVotes([
+    // Player 1: full evaluation by every seeded admin.
+    [1, "seed-ben", 5, 3],
+    [1, "seed-charlie", 4, 3],
+    // Player 2: partial level-only and speed-only ballots.
+    [2, "seed-alex", 4],
+    [2, "seed-charlie", undefined, 2],
+    // Player 4: one ballot only — intentionally still open.
+    [4, "seed-alex", 2, 1],
+    // Several players intentionally have no ballots yet.
+  ]),
 });
 
 const communityPlayers: Player[] = [
@@ -298,6 +336,17 @@ export const seedGroups = (): PlayerGroup[] => [
       demoGame(202, 6, "Urban Sports Center", "A", [101, 103, 105, 106], []),
     ],
     requests: [],
+    admins: seededAdmins([
+      ["city-bruno", 101, "Bruno Silva", "owner"],
+      ["city-camila", 102, "Camila Rocha", "admin"],
+    ]),
+    skillVotes: seededVotes([
+      [101, "city-camila", 4, 3],
+      [102, "city-bruno", 3, 2],
+      [103, "city-bruno", 5, 3],
+      [103, "city-camila", 4, 3],
+      // Players 104–107 have no evaluation yet.
+    ]),
   },
   {
     id: "weekend-friends-b9c2",
@@ -310,6 +359,19 @@ export const seedGroups = (): PlayerGroup[] => [
       demoGame(302, 9, "Green Field Club", "1", [202, 204, 206], []),
     ],
     requests: [],
+    admins: seededAdmins([
+      ["weekend-igor", 201, "Igor Nunes", "owner"],
+      ["weekend-juliana", 202, "Juliana Freitas", "admin"],
+      ["weekend-kai", 203, "Kai Mendes", "admin"],
+    ]),
+    skillVotes: seededVotes([
+      [201, "weekend-juliana", 1, 1],
+      [201, "weekend-kai", 2, 1],
+      [202, "weekend-igor", 5, 3],
+      [202, "weekend-kai", 4, 3],
+      [203, "weekend-igor", 3, 2],
+      // Players 204–206 are deliberately not evaluated.
+    ]),
   },
   {
     id: "morning-padel-c4d8",
@@ -324,6 +386,8 @@ export const seedGroups = (): PlayerGroup[] => [
     ],
     games: [demoGame(401, 5, "Padel One", "2", [301, 302, 303, 304], [])],
     requests: [],
+    admins: seededAdmins([["morning-rafa", 301, "Rafa Torres", "owner"]]),
+    skillVotes: [],
   },
   {
     id: "sunset-futsal-e5f1",
@@ -338,6 +402,8 @@ export const seedGroups = (): PlayerGroup[] => [
     ],
     games: [demoGame(501, 7, "Sunset Arena", "1", [401, 402, 403, 404], [])],
     requests: [],
+    admins: seededAdmins([["sunset-ana", 401, "Ana Reis", "owner"]]),
+    skillVotes: [],
   },
   {
     id: "harbor-football-f6a4",
@@ -352,6 +418,11 @@ export const seedGroups = (): PlayerGroup[] => [
     ],
     games: [demoGame(601, 10, "Harbor Field", "4", [501, 502, 503, 504], [])],
     requests: [],
+    admins: seededAdmins([
+      ["harbor-bia", 501, "Bia Ramos", "owner"],
+      ["harbor-davi", 502, "Davi Cruz", "admin"],
+    ]),
+    skillVotes: [],
   },
   {
     id: "downtown-futsal-a7b2",
@@ -366,6 +437,8 @@ export const seedGroups = (): PlayerGroup[] => [
     ],
     games: [demoGame(701, 12, "Downtown Court", "C", [601, 602, 603, 604], [])],
     requests: [],
+    admins: seededAdmins([["downtown-iara", 601, "Iara Viana", "owner"]]),
+    skillVotes: [],
   },
 ];
 

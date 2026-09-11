@@ -44,13 +44,20 @@ There is no global “admin account” mode. A user can be an admin in Group A, 
 | --- | --- | --- | --- |
 | View active group games | Yes | Yes | Only their invited game |
 | Create a game | Yes | Yes | No |
-| Edit/delete group or see statistics | Yes | No | No |
+| Edit group, use Admin panel, or see statistics | Yes | No | No |
+| Delete group | Owner only | No | No |
 | Maintain group player directory and attributes | Yes | No | No |
 | Manage any group game | Yes | No | No |
 | Manage a game created by themselves | Yes | Yes | No |
 | Join/leave own game entry and update own payment | Yes | Yes | Yes |
 
 When a participant creates a game, the game records `createdByUserId` and `createdByRole: participant`. The creator becomes that game’s organizer only. They can create players, add/remove players in that game, mark payments, and balance teams. They do **not** become a group admin, cannot see player skill attributes, cannot see group statistics, and cannot manage games created by someone else. A group admin retains full management of every game in the group.
+
+## Group admin panel and skill voting
+
+The group creator is stored as `owner`; other administrators are `admin`. Both can operate the group today, but only the owner may delete the group (with the group passcode) and the owner cannot be removed through the admin panel. When an owner leaves, ownership transfers to the most active remaining member, then to the oldest membership on a tie. Admins can create an individual invitation for an existing participant to become an admin. Acceptance preserves that person's player membership and adds the admin role.
+
+Admins vote independently on every group player's level (1–5) and mobility (1–3). A vote is saved immediately and the current mean is applied immediately, rounding `.5` upward. A missing vote never blocks the current value or team balancing; that admin may vote later and update the aggregate. An admin never sees, votes on, or manually edits their own level/mobility. They may edit only their own position and condition. Players' own level and mobility are also hidden from their row in game-management lists.
 
 ## Game roster flow
 

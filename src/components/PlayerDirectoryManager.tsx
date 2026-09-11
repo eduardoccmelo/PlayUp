@@ -63,7 +63,7 @@ export function PlayerDirectoryManager({
     if (ownsPlayer(first) !== ownsPlayer(second)) return ownsPlayer(first) ? -1 : 1;
     return first.name.localeCompare(second.name, language === "pt" ? "pt-BR" : "en");
   });
-
+  const isEditingOwnPlayer = Boolean(editingPlayer && ownsPlayer(editingPlayer));
   return (
     <section className="directory-manager">
       <div className="directory-manager-heading">
@@ -154,19 +154,46 @@ export function PlayerDirectoryManager({
                   setDraft({ ...draft, name: event.target.value })
                 }
               />
-              <select
-                className="player-form-level"
-                value={draft.level}
+              {!isEditingOwnPlayer && (
+                <select
+                  className="player-form-level"
+                  value={draft.level}
+                  disabled={mode === "edit"}
+                  onChange={(event) =>
+                    setDraft({ ...draft, level: Number(event.target.value) })
+                  }
+                >
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <option key={level} value={level}>
+                      {localize("Nível", language)} {level}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {!isEditingOwnPlayer && <select
+                className="player-form-mobility"
+                value={draft.mobility}
+                disabled={mode === "edit"}
                 onChange={(event) =>
-                  setDraft({ ...draft, level: Number(event.target.value) })
+                  setDraft({
+                    ...draft,
+                    mobility: event.target.value as Mobility,
+                  })
                 }
               >
-                {[1, 2, 3, 4, 5].map((level) => (
-                  <option key={level} value={level}>
-                    {localize("Nível", language)} {level}
-                  </option>
-                ))}
-              </select>
+                <option value="lento">
+                  {localize("Velocidade", language)}:{" "}
+                  {localize("Lento", language)}
+                </option>
+                <option value="neutro">
+                  {localize("Velocidade", language)}:{" "}
+                  {localize("Neutra", language)}
+                </option>
+                <option value="rapido">
+                  {localize("Velocidade", language)}:{" "}
+                  {localize("Rápido", language)}
+                </option>
+              </select>}
               <select
                 className="player-form-position"
                 value={draft.position}
@@ -186,29 +213,6 @@ export function PlayerDirectoryManager({
                 <option value="ataque">{localize("Ataque", language)}</option>
               </select>
               <select
-                className="player-form-mobility"
-                value={draft.mobility}
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    mobility: event.target.value as Mobility,
-                  })
-                }
-              >
-                <option value="neutro">
-                  {localize("Velocidade", language)}:{" "}
-                  {localize("Neutra", language)}
-                </option>
-                <option value="rapido">
-                  {localize("Velocidade", language)}:{" "}
-                  {localize("Rápido", language)}
-                </option>
-                <option value="lento">
-                  {localize("Velocidade", language)}:{" "}
-                  {localize("Lento", language)}
-                </option>
-              </select>
-              <select
                 className="player-form-condition"
                 value={draft.condition}
                 onChange={(event) =>
@@ -218,15 +222,15 @@ export function PlayerDirectoryManager({
                   })
                 }
               >
+                <option value="ruim">
+                  {localize("Condição", language)}: {localize("Ruim", language)}
+                </option>
                 <option value="neutro">
                   {localize("Condição", language)}:{" "}
                   {localize("Neutra", language)}
                 </option>
                 <option value="boa">
                   {localize("Condição", language)}: {localize("Boa", language)}
-                </option>
-                <option value="ruim">
-                  {localize("Condição", language)}: {localize("Ruim", language)}
                 </option>
               </select>
               <button className="primary player-form-submit">

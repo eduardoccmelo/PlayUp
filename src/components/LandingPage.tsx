@@ -89,14 +89,16 @@ export function LandingPage({
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(intervalId);
   }, [accessCodeExpiresAt, step]);
-  const closeProfile = () => {
+  const closeProfile = (
+    nextProfile: Pick<CurrentUser, "displayName" | "email"> | null = null,
+  ) => {
     onCloseProfile?.();
     setStep("details");
     setAccessCode("");
     setProfileError("");
     setResendConfirmation(false);
-    setName(user?.displayName ?? "");
-    setEmail(user?.email ?? "");
+    setName(nextProfile?.displayName ?? user?.displayName ?? "");
+    setEmail(nextProfile?.email ?? user?.email ?? "");
   };
   const issueAccessCode = () => {
     setIssuedAccessCode(createVerificationCode());
@@ -124,7 +126,11 @@ export function LandingPage({
         mode,
       );
       setProfileError(error ?? "");
-      if (!error) closeProfile();
+      if (!error)
+        closeProfile({
+          displayName: name.trim(),
+          email: email.trim().toLowerCase(),
+        });
       return;
     }
     setProfileError("");
@@ -155,7 +161,11 @@ export function LandingPage({
       mode,
     );
     setProfileError(error ?? "");
-    if (!error) closeProfile();
+    if (!error)
+      closeProfile({
+        displayName: name.trim(),
+        email: email.trim().toLowerCase(),
+      });
   };
 
   const profileDialog = isEditing && (
@@ -290,7 +300,7 @@ export function LandingPage({
               <button
                 className="secondary"
                 type="button"
-                onClick={closeProfile}
+                onClick={() => closeProfile()}
               >
                 {localize("Cancelar", language)}
               </button>
@@ -398,7 +408,7 @@ export function LandingPage({
               <button
                 className="secondary"
                 type="button"
-                onClick={closeProfile}
+                onClick={() => closeProfile()}
               >
                 {localize("Cancelar", language)}
               </button>

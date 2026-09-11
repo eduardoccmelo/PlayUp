@@ -642,6 +642,32 @@ em {
   stroke-linejoin: round;
   stroke-width: 1.8;
 }
+.group-name-edit-button {
+  display: inline-grid;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #486052;
+}
+.group-name-edit-button:hover {
+  background: transparent;
+  color: #173c2b;
+}
+.group-name-edit-button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+}
 .game-owner-badge {
   display: inline-flex;
   align-items: center;
@@ -1278,6 +1304,195 @@ header {
 .group-management-actions .game-directory-actions {
   flex-wrap: nowrap;
 }
+.group-management-past-games-button {
+  display: none;
+}
+.group-admin-panel-button {
+  border-color: #277147;
+  background: #277147;
+  color: #fff;
+}
+.admin-panel-page {
+  padding-bottom: 48px;
+  text-align: left;
+}
+.admin-panel-heading {
+  margin: 24px 0 18px;
+}
+.admin-panel-title-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.admin-panel-heading h1 {
+  margin: 0;
+  color: #173c2b;
+  font-size: clamp(32px, 4vw, 48px);
+  text-align: left;
+}
+.admin-panel-section {
+  max-width: 900px;
+  margin: 18px auto;
+  padding: 20px;
+  text-align: left;
+}
+.admin-panel-heading + .admin-panel-section {
+  margin-top: 0;
+}
+.admin-panel-header-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.admin-panel-header-actions > button {
+  white-space: nowrap;
+}
+.admin-panel-header-actions .secondary {
+  padding-inline: 10px;
+}
+.admin-panel-section h2 {
+  margin: 0 0 12px;
+  color: #173c2b;
+  text-align: left;
+}
+.admin-panel-help {
+  margin: 0 0 14px;
+  color: #526658;
+  text-align: left;
+}
+.admin-panel-row,
+.skill-vote-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid #dce5dd;
+  text-align: left;
+}
+.admin-panel-row > span:not(.admin-panel-actions),
+.skill-vote-player {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+}
+.admin-panel-row small,
+.skill-vote-player small {
+  color: #708073;
+}
+.admin-panel-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.skill-vote-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.skill-vote-controls fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.skill-vote-divider {
+  align-self: stretch;
+  width: 1px;
+  min-width: 1px;
+  margin: 0 2px;
+  border-left: 1px solid #b8c5ba;
+  color: #b8c5ba;
+}
+.skill-vote-controls legend {
+  flex-basis: 100%;
+  width: 100%;
+  margin-bottom: 4px;
+  color: #526658;
+  font-size: 12px;
+  font-weight: 700;
+}
+.skill-vote-controls button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid #d4dfd5;
+  border-radius: 999px;
+  background: #f5f8f4;
+  box-shadow: none;
+  color: #486052;
+  font-weight: 800;
+}
+.skill-vote-controls button.selected {
+  border-color: #277147;
+  background: #277147;
+  color: #fff;
+}
+@media (max-width: 650px) {
+  .admin-panel-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .admin-panel-header-actions {
+    width: 100%;
+  }
+  .admin-panel-header-actions > button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .skill-vote-row {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+  }
+  .skill-vote-player {
+    justify-items: center;
+    text-align: center;
+  }
+  .skill-vote-controls {
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .skill-vote-controls fieldset {
+    gap: 3px;
+  }
+  .skill-vote-controls button {
+    width: 27px;
+    min-width: 27px;
+    height: 27px;
+    min-height: 27px;
+  }
+  .skill-vote-divider {
+    display: block;
+    margin: 0 1px;
+  }
+}
+@media (max-width: 450px) {
+  .admin-panel-header-actions > button {
+    padding-inline: 6px;
+    font-size: 11px;
+    letter-spacing: -0.02em;
+  }
+}
+@media (max-width: 400px) {
+  .admin-panel-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: flex-start;
+  }
+  .admin-panel-actions {
+    width: 100%;
+  }
+  .admin-panel-actions > button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
 .game-management-title-row {
   display: flex;
   align-items: center;
@@ -1587,13 +1802,13 @@ header {
 .directory-player-modal .player-form-level {
   order: 2;
 }
-.directory-player-modal .player-form-position {
+.directory-player-modal .player-form-mobility {
   order: 3;
 }
-.directory-player-modal .player-form-condition {
+.directory-player-modal .player-form-position {
   order: 4;
 }
-.directory-player-modal .player-form-mobility {
+.directory-player-modal .player-form-condition {
   order: 5;
 }
 .directory-player-modal .player-form-cancel {
@@ -2779,40 +2994,8 @@ header {
     width: 100%;
     margin: 0;
   }
-  .group-management-actions {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 20px;
-  }
-  .group-management-actions > p {
-    width: 100%;
-    text-align: center;
-  }
-  .group-management-actions .game-directory-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
-  }
-  .group-management-actions .game-directory-actions button {
-    width: 100%;
-  }
 }
 @media (max-width: 550px) {
-  .group-management-actions {
-    gap: 8px;
-  }
-  .group-management-actions > p {
-    font-size: 16px;
-  }
-  .group-management-actions .game-directory-actions {
-    flex: 1;
-    gap: 6px;
-  }
-  .group-management-actions .game-directory-actions button {
-    min-width: 0;
-    padding-inline: 7px;
-    white-space: nowrap;
-  }
   .game-management-title-row,
   .directory-manager-heading {
     align-items: stretch;
@@ -2829,6 +3012,35 @@ header {
     display: inline;
   }
   .weekday-name-full {
+    display: none;
+  }
+}
+@media (max-width: 450px) {
+  .group-management-actions {
+    align-items: center;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .group-management-actions > p {
+    width: 100%;
+    font-size: 16px;
+    text-align: center;
+  }
+  .group-management-actions .game-directory-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .group-management-actions .game-directory-actions button {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 6px;
+    white-space: nowrap;
+  }
+  .group-management-past-games-button {
+    display: block;
+  }
+  .game-management-title-row > .game-directory-actions > .past-games-button {
     display: none;
   }
 }

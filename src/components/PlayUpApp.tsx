@@ -34,6 +34,7 @@ import { PlayerDirectoryManager } from "./PlayerDirectoryManager";
 import { GroupSelector } from "./GroupSelector";
 import { CompactGameDetails, EventSummary } from "./EventSummary";
 import { GroupStatistics } from "./GroupStatistics";
+import { AdminPanel } from "./AdminPanel";
 import { ReadOnlyGame } from "./ReadOnlyGame";
 import {
   compareGameStartTime as chronological,
@@ -176,6 +177,7 @@ export function PlayUpApp() {
     | "participant-manage"
     | "player"
     | "statistics"
+    | "admin-panel"
     | "past-games"
   >("home");
   const [groups, setGroups] = useLocalStorage<PlayerGroup[]>(
@@ -308,7 +310,28 @@ export function PlayUpApp() {
 
     setGroups((currentGroups) =>
       currentGroups.map((group) => {
-        if (group.id === SEED_GROUP_ID) return attachDemoPlayer(group, [2]);
+        if (group.id === SEED_GROUP_ID) {
+          const demoGroup = attachDemoPlayer(group, [2]);
+          const player = demoGroup.players.find((item) => item.ownerUserId === currentUser.id);
+          return {
+            ...demoGroup,
+            admins: [
+              {
+                userId: currentUser.id,
+                playerId: player?.id,
+                displayName: currentUser.displayName,
+                role: "owner" as const,
+                joinedAt:
+                  (demoGroup.admins ?? []).find(
+                    (admin) => admin.userId === currentUser.id,
+                  )?.joinedAt ?? new Date().toISOString(),
+              },
+              ...(demoGroup.admins ?? [])
+                .filter((admin) => admin.userId !== currentUser.id)
+                .map((admin) => ({ ...admin, role: "admin" as const })),
+            ],
+          };
+        }
         if (group.id === PARTICIPANT_SEED_GROUP_ID) {
           const demoGroup = attachDemoPlayer(group, [201, 202]);
           const ownedPlayer = demoGroup.players.find(
@@ -336,8 +359,16 @@ export function PlayUpApp() {
             ],
           };
         }
-        if (group.id === "weekend-friends-b9c2")
-          return attachDemoPlayer(group, [301, 302]);
+        if (group.id === "weekend-friends-b9c2") {
+          const demoGroup = attachDemoPlayer(group, [301, 302]);
+          const player = demoGroup.players.find((item) => item.ownerUserId === currentUser.id);
+          return {
+            ...demoGroup,
+            admins: (demoGroup.admins ?? []).some((admin) => admin.userId === currentUser.id)
+              ? demoGroup.admins
+              : [...(demoGroup.admins ?? []), { userId: currentUser.id, playerId: player?.id, displayName: currentUser.displayName, role: "admin", joinedAt: new Date().toISOString() }],
+          };
+        }
         if (group.id === "morning-padel-c4d8")
           return attachDemoPlayer(group, [401]);
         return group;
@@ -748,6 +779,7 @@ export function PlayUpApp() {
       return;
     }
     const isNewPlayer = editPlayer === null;
+    const newPlayerId = nextIdentifier(players);
     const next = editPlayer
       ? players.map((p) =>
           p.id === editPlayer
@@ -767,9 +799,10 @@ export function PlayUpApp() {
       : [
           ...players,
           {
-            id: nextIdentifier(players),
+            id: newPlayerId,
             ...playerForm,
             name,
+            createdByUserId: currentUser?.id,
             ownerUserId:
               currentUser &&
               normalizeText(name) === normalizeText(currentUser.displayName)
@@ -781,7 +814,37 @@ export function PlayUpApp() {
             accessScope: game ? ("game" as const) : ("group" as const),
           },
         ];
-    setPlayers(next);
+    const canRegisterCreatorVote = Boolean(
+      isNewPlayer &&
+        currentUser &&
+        activeGroup?.admins?.some((admin) => admin.userId === currentUser.id),
+    );
+    if (canRegisterCreatorVote && currentUser) {
+      const mobility =
+        playerForm.mobility === "lento"
+          ? 1
+          : playerForm.mobility === "rapido"
+            ? 3
+            : 2;
+      updateActiveGroup({
+        players: next,
+        skillVotes: [
+          ...(activeGroup?.skillVotes ?? []).filter(
+            (vote) =>
+              vote.playerId !== newPlayerId || vote.adminUserId !== currentUser.id,
+          ),
+          {
+            playerId: newPlayerId,
+            adminUserId: currentUser.id,
+            level: playerForm.level,
+            mobility,
+            updatedAt: new Date().toISOString(),
+          },
+        ],
+      });
+    } else {
+      setPlayers(next);
+    }
     saveGames(
       games.map((g) => {
         const editedPlayerIsPlaying =
@@ -970,7 +1033,30 @@ export function PlayUpApp() {
     setRequests(requests.filter((request) => !dismissedIds.has(request.id)));
   };
   const leaveGroup = (groupToLeave: PlayerGroup) => {
-    if (!currentUser) return;
+    if (!currentUser) return false;
+    const currentMembership = (groupToLeave.admins ?? []).find(
+      (admin) => admin.userId === currentUser.id,
+    );
+    const isOwner = currentMembership?.role === "owner";
+    const candidates = new Map<string, { userId: string; playerId?: number; displayName: string; joinedAt: string }>();
+    (groupToLeave.admins ?? []).forEach((admin) => {
+      if (admin.userId !== currentUser.id) candidates.set(admin.userId, admin);
+    });
+    groupToLeave.players.forEach((player) => {
+      if (player.ownerUserId && player.ownerUserId !== currentUser.id)
+        candidates.set(player.ownerUserId, { userId: player.ownerUserId, playerId: player.id, displayName: player.name, joinedAt: groupToLeave.createdAt });
+    });
+    const participationCount = (playerId?: number) =>
+      playerId === undefined ? 0 : groupToLeave.games.reduce(
+        (total, gameSession) => total + gameSession.playerIds.filter((id) => id === playerId).length,
+        0,
+      );
+    const successor = [...candidates.values()].sort(
+      (first, second) =>
+        participationCount(second.playerId) - participationCount(first.playerId) ||
+        first.joinedAt.localeCompare(second.joinedAt),
+    )[0];
+    if (isOwner && !successor) return false;
     const ownedIds = new Set(
       groupToLeave.players
         .filter((player) => isCurrentUserPlayer(player, currentUser))
@@ -982,6 +1068,14 @@ export function PlayUpApp() {
           ? group
           : {
               ...group,
+              admins: isOwner
+                ? [
+                    ...(group.admins ?? [])
+                      .filter((admin) => admin.userId !== currentUser.id && admin.userId !== successor.userId)
+                      .map((admin) => ({ ...admin, role: "admin" as const })),
+                    { userId: successor.userId, playerId: successor.playerId, displayName: successor.displayName, role: "owner" as const, joinedAt: successor.joinedAt },
+                  ]
+                : (group.admins ?? []).filter((admin) => admin.userId !== currentUser.id),
               players: group.players.filter(
                 (player) => !ownedIds.has(player.id),
               ),
@@ -1021,6 +1115,7 @@ export function PlayUpApp() {
           !groupToLeave.games.some((gameSession) => gameSession.id === id),
       ),
     );
+    return true;
   };
   const saveProfile = (
     { displayName, email }: Pick<CurrentUser, "displayName" | "email">,
@@ -1062,6 +1157,11 @@ export function PlayUpApp() {
           player.ownerUserId === userId
             ? { ...player, name: displayName }
             : player,
+        ),
+        admins: (group.admins ?? []).map((admin) =>
+          admin.userId === userId
+            ? { ...admin, displayName }
+            : admin,
         ),
       })),
     );
@@ -1135,6 +1235,10 @@ export function PlayUpApp() {
             players: [],
             games: [],
             requests: [],
+            admins: currentUser
+              ? [{ userId: currentUser.id, displayName: currentUser.displayName, role: "owner", joinedAt: new Date().toISOString() }]
+              : [],
+            skillVotes: [],
           };
           setGroups([...groups, group]);
           setCurrentUser((user) =>
@@ -1180,9 +1284,15 @@ export function PlayUpApp() {
           const participantGroup = groups.find((candidate) =>
             sameInviteCode(code, groupPlayerInviteCode(candidate)),
           );
-          const adminGroup = groups.find((candidate) =>
+          const genericAdminGroup = groups.find((candidate) =>
             sameInviteCode(code, groupAdminInviteCode(candidate)),
           );
+          const targetedAdminInvite = groups
+            .flatMap((candidate) =>
+              (candidate.adminInvites ?? []).map((invite) => ({ candidate, invite })),
+            )
+            .find(({ invite }) => sameInviteCode(code, invite.code));
+          const adminGroup = genericAdminGroup ?? targetedAdminInvite?.candidate;
           const group = participantGroup ?? adminGroup;
           if (!group) return "Código de grupo inválido.";
           if (!currentUser?.emailVerified) {
@@ -1190,6 +1300,14 @@ export function PlayUpApp() {
           }
           if (adminGroup && passcode !== adminGroup.organizerPasscode) {
             return "Senha atual incorreta.";
+          }
+          if (targetedAdminInvite) {
+            const invitedPlayer = group.players.find(
+              (player) => player.id === targetedAdminInvite.invite.playerId,
+            );
+            if (invitedPlayer?.ownerUserId !== currentUser.id) {
+              return "Este convite de admin pertence a outro participante.";
+            }
           }
           if (
             currentUser &&
@@ -1226,6 +1344,19 @@ export function PlayUpApp() {
                     },
               ),
             );
+          }
+          if (adminGroup && currentUser) {
+            setGroups((currentGroups) => currentGroups.map((candidate) => {
+              if (candidate.id !== adminGroup.id || (candidate.admins ?? []).some((admin) => admin.userId === currentUser.id)) return candidate;
+              const ownedPlayer = candidate.players.find((player) => player.ownerUserId === currentUser.id);
+              return {
+                ...candidate,
+                admins: [...(candidate.admins ?? []), { userId: currentUser.id, playerId: ownedPlayer?.id, displayName: currentUser.displayName, role: "admin", joinedAt: new Date().toISOString() }],
+                adminInvites: targetedAdminInvite
+                  ? (candidate.adminInvites ?? []).filter((invite) => invite.code !== targetedAdminInvite.invite.code)
+                  : candidate.adminInvites,
+              };
+            }));
           }
           setCurrentUser((user) =>
             !user
@@ -1483,6 +1614,70 @@ export function PlayUpApp() {
         }}
       />,
     );
+  if (access === "admin-panel" && activeGroup && currentUser)
+    return withProfile(
+      <AdminPanel
+        group={activeGroup}
+        user={currentUser}
+        language={language}
+        onBack={() => setAccess("admin")}
+        onLanguageChange={setLanguage}
+        onProfile={() => setProfileRequested(true)}
+        onStatistics={() => setAccess("statistics")}
+        onLeaveGroup={() => {
+          if (!leaveGroup(activeGroup)) return false;
+          setActiveGroupId(null);
+          setAccess("groups");
+          return true;
+        }}
+        onDeleteGroup={(passcode) => {
+          if (passcode !== activeGroup.organizerPasscode) return false;
+          setGroups((currentGroups) => currentGroups.filter((group) => group.id !== activeGroup.id));
+          setActiveGroupId(null);
+          setAccess("groups");
+          return true;
+        }}
+        onRemoveAdmin={(userId) => {
+          setGroups((currentGroups) => currentGroups.map((group) =>
+            group.id !== activeGroup.id
+              ? group
+              : { ...group, admins: (group.admins ?? []).filter((admin) => admin.userId !== userId) },
+          ));
+        }}
+        onCreateInvite={(playerId) => {
+          const code = `PUA-${activeGroup.id}-${playerId}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+          setGroups((currentGroups) => currentGroups.map((group) =>
+            group.id !== activeGroup.id
+              ? group
+              : { ...group, adminInvites: [...(group.adminInvites ?? []).filter((invite) => invite.playerId !== playerId), { code, playerId, createdByUserId: currentUser.id, createdAt: new Date().toISOString() }] },
+          ));
+          return code;
+        }}
+        onVote={(playerId, field, value) => {
+          setGroups((currentGroups) => currentGroups.map((group) => {
+            if (group.id !== activeGroup.id) return group;
+            const player = group.players.find((candidate) => candidate.id === playerId);
+            if (!player || player.ownerUserId === currentUser.id) return group;
+            const previous = (group.skillVotes ?? []).find((vote) => vote.playerId === playerId && vote.adminUserId === currentUser.id);
+            const nextVote = { playerId, adminUserId: currentUser.id, level: previous?.level, mobility: previous?.mobility, [field]: value ?? undefined, updatedAt: new Date().toISOString() };
+            const skillVotes = [
+              ...(group.skillVotes ?? []).filter((vote) => vote !== previous),
+              ...((nextVote.level === undefined && nextVote.mobility === undefined) ? [] : [nextVote]),
+            ];
+            const votes = skillVotes.filter((vote) => vote.playerId === playerId);
+            const levelVotes = votes.filter((vote) => vote.level !== undefined);
+            const mobilityVotes = votes.filter((vote) => vote.mobility !== undefined);
+            const level = levelVotes.length ? Math.floor(levelVotes.reduce((sum, vote) => sum + (vote.level ?? 0), 0) / levelVotes.length + 0.5) : player.level;
+            const mobilityScore = mobilityVotes.length ? Math.floor(mobilityVotes.reduce((sum, vote) => sum + (vote.mobility ?? 0), 0) / mobilityVotes.length + 0.5) : player.mobility === "lento" ? 1 : player.mobility === "rapido" ? 3 : 2;
+            return {
+              ...group,
+              skillVotes,
+              players: group.players.map((candidate) => candidate.id !== playerId ? candidate : { ...candidate, level, mobility: mobilityScore === 1 ? "lento" : mobilityScore === 3 ? "rapido" : "neutro" }),
+            };
+          }));
+        }}
+      />,
+    );
   if (access === "statistics")
     return withProfile(
       <GroupStatistics
@@ -1704,38 +1899,16 @@ export function PlayUpApp() {
               <p>{activeGroup.name}</p>
               <div className="game-directory-actions">
                 <button
-                  className="session-action-button view"
-                  onClick={() => setAccess("statistics")}
+                  className="secondary past-games-button group-management-past-games-button"
+                  onClick={() => setAccess("past-games")}
                 >
-                  {localize("Estatísticas", language)}
+                  {localize("Jogos passados", language)}
                 </button>
                 <button
-                  className="secondary"
-                  onClick={() => {
-                    setEditedGroupName(activeGroup?.name ?? "");
-                    setCurrentGroupPasscode("");
-                    setNewGroupPasscode("");
-                    setGroupSettingsError("");
-                    setIsGroupEditOpen(true);
-                  }}
-                >
-                  {localize("Editar", language)}
-                </button>
-                <button
-                  className="session-action-button leave"
-                  onClick={() => setIsGroupLeaveOpen(true)}
-                >
-                  {localize("Sair do grupo", language)}
-                </button>
-                <button
-                  className="session-action-button delete"
-                  onClick={() => {
-                    setGroupDeletePasscode("");
-                    setGroupDeleteError("");
-                    setIsGroupDeleteOpen(true);
-                  }}
-                >
-                  {localize("Deletar grupo", language)}
+                  className="secondary group-admin-panel-button"
+                  onClick={() => setAccess("admin-panel")}
+              >
+                  {localize("Painel do admin", language)}
                 </button>
               </div>
             </div>
@@ -1747,6 +1920,12 @@ export function PlayUpApp() {
             </h1>
             <div className="game-directory-actions">
               <button
+                className="secondary past-games-button"
+                onClick={() => setAccess("past-games")}
+              >
+                {localize("Jogos passados", language)}
+              </button>
+              <button
                 className="session-action-button edit new-game-button"
                 onClick={() => {
                   setEditGame(null);
@@ -1755,12 +1934,6 @@ export function PlayUpApp() {
                 }}
               >
                 + {localize("Novo jogo", language)}
-              </button>
-              <button
-                className="secondary past-games-button"
-                onClick={() => setAccess("past-games")}
-              >
-                {localize("Jogos passados", language)}
               </button>
             </div>
           </div>
@@ -1864,24 +2037,52 @@ export function PlayUpApp() {
               setNotice("Esse nome já está na lista.");
               return false;
             }
-            setPlayers([
-              ...players,
-              {
-                id: nextIdentifier(players),
-                ...player,
-                ownerUserId:
-                  currentUser &&
-                  normalizeText(player.name) ===
-                    normalizeText(currentUser.displayName)
-                    ? currentUser.id
-                    : player.ownerUserId,
-                isGuest:
-                  !currentUser ||
-                  normalizeText(player.name) !==
-                    normalizeText(currentUser.displayName),
-                accessScope: "group",
-              },
-            ]);
+            const playerId = nextIdentifier(players);
+            const createdPlayer = {
+              id: playerId,
+              ...player,
+              createdByUserId: currentUser?.id,
+              ownerUserId:
+                currentUser &&
+                normalizeText(player.name) ===
+                  normalizeText(currentUser.displayName)
+                  ? currentUser.id
+                  : player.ownerUserId,
+              isGuest:
+                !currentUser ||
+                normalizeText(player.name) !==
+                  normalizeText(currentUser.displayName),
+              accessScope: "group" as const,
+            };
+            const canRegisterCreatorVote = Boolean(
+              currentUser &&
+                activeGroup?.admins?.some(
+                  (admin) => admin.userId === currentUser.id,
+                ),
+            );
+            if (canRegisterCreatorVote && currentUser) {
+              const mobility =
+                player.mobility === "lento"
+                  ? 1
+                  : player.mobility === "rapido"
+                    ? 3
+                    : 2;
+              updateActiveGroup({
+                players: [...players, createdPlayer],
+                skillVotes: [
+                  ...(activeGroup?.skillVotes ?? []),
+                  {
+                    playerId,
+                    adminUserId: currentUser.id,
+                    level: player.level,
+                    mobility,
+                    updatedAt: new Date().toISOString(),
+                  },
+                ],
+              });
+            } else {
+              setPlayers([...players, createdPlayer]);
+            }
             return true;
           }}
           onUpdatePlayer={(updatedPlayer) => {
@@ -2035,6 +2236,7 @@ export function PlayUpApp() {
                 {listed.map((p) => {
                   const score = playerScoreBreakdown(p);
                   const isPaid = game.paidPlayerIds.includes(p.id);
+                  const isOwnPlayer = isCurrentUserPlayer(p, currentUser);
                   const scoreLabel = `${score.level.toFixed(2)} ${score.mobility >= 0 ? "+" : ""}${score.mobility.toFixed(2)} ${score.condition >= 0 ? "+" : ""}${score.condition.toFixed(2)} = ${score.total.toFixed(2)}`;
 
                   return (
@@ -2058,9 +2260,9 @@ export function PlayUpApp() {
                         </strong>
                         {!isParticipantGameManager && (
                           <span>
-                            {localize("Nível", language)} {p.level}
+                            {!isOwnPlayer && <>{localize("Nível", language)} {p.level}</>}
                             {p.condition !== "neutro" && (
-                              <> · {p.condition === "boa" ? "↑" : "↓"}</>
+                              <>{!isOwnPlayer && " · "}{p.condition === "boa" ? "↑" : "↓"}</>
                             )}
                             <>
                               {" "}
@@ -2076,7 +2278,7 @@ export function PlayUpApp() {
                                 language,
                               )}
                             </>{" "}
-                            <span title={scoreLabel} className="player-score">
+                            {!isOwnPlayer && <span title={scoreLabel} className="player-score">
                               (
                               {score.total.toLocaleString(
                                 language === "pt" ? "pt-BR" : "en-US",
@@ -2085,7 +2287,7 @@ export function PlayUpApp() {
                                 },
                               )}{" "}
                               {localize("pontos", language)})
-                            </span>
+                            </span>}
                           </span>
                         )}
                       </div>
@@ -2462,6 +2664,29 @@ export function PlayUpApp() {
                 ))}
               </select>
               <select
+                className="player-form-mobility"
+                value={playerForm.mobility}
+                onChange={(event) =>
+                  setPlayerForm({
+                    ...playerForm,
+                    mobility: event.target.value as Mobility,
+                  })
+                }
+              >
+                <option value="lento">
+                  {localize("Velocidade", language)}:{" "}
+                  {localize("Lento", language)}
+                </option>
+                <option value="neutro">
+                  {localize("Velocidade", language)}:{" "}
+                  {localize("Neutra", language)}
+                </option>
+                <option value="rapido">
+                  {localize("Velocidade", language)}:{" "}
+                  {localize("Rápido", language)}
+                </option>
+              </select>
+              <select
                 className="player-form-position"
                 value={playerForm.position}
                 onChange={(event) =>
@@ -2480,29 +2705,6 @@ export function PlayUpApp() {
                 <option value="ataque">{localize("Ataque", language)}</option>
               </select>
               <select
-                className="player-form-mobility"
-                value={playerForm.mobility}
-                onChange={(event) =>
-                  setPlayerForm({
-                    ...playerForm,
-                    mobility: event.target.value as Mobility,
-                  })
-                }
-              >
-                <option value="neutro">
-                  {localize("Velocidade", language)}:{" "}
-                  {localize("Neutra", language)}
-                </option>
-                <option value="rapido">
-                  {localize("Velocidade", language)}:{" "}
-                  {localize("Rápido", language)}
-                </option>
-                <option value="lento">
-                  {localize("Velocidade", language)}:{" "}
-                  {localize("Lento", language)}
-                </option>
-              </select>
-              <select
                 className="player-form-condition"
                 value={playerForm.condition}
                 onChange={(event) =>
@@ -2512,15 +2714,15 @@ export function PlayUpApp() {
                   })
                 }
               >
+                <option value="ruim">
+                  {localize("Condição", language)}: {localize("Ruim", language)}
+                </option>
                 <option value="neutro">
                   {localize("Condição", language)}:{" "}
                   {localize("Neutra", language)}
                 </option>
                 <option value="boa">
                   {localize("Condição", language)}: {localize("Boa", language)}
-                </option>
-                <option value="ruim">
-                  {localize("Condição", language)}: {localize("Ruim", language)}
                 </option>
               </select>
               <button className="primary player-form-submit">

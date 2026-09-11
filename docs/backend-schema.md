@@ -57,7 +57,7 @@ invites ──> groups or games
 create extension if not exists pgcrypto;
 create extension if not exists citext;
 
-create type group_role as enum ('admin', 'participant');
+create type group_role as enum ('owner', 'admin', 'participant');
 create type game_status as enum ('active', 'cancelled', 'finished', 'deleted');
 create type game_access_source as enum ('invite', 'manual_code');
 create type game_access_status as enum ('active', 'revoked');
@@ -149,6 +149,8 @@ create index group_memberships_user_active_idx
   on group_memberships(user_id, group_id) where left_at is null;
 ~~~
 
+`owner` is the immutable creator role for a group. It currently has the same operational permissions as `admin`, but preserves the hierarchy for future governance rules. An owner cannot be removed or demoted through the normal admin panel, and a group must always retain at least one active owner/admin membership.
+
 Use Argon2id (preferred) or bcrypt for group codes and organizer passcodes. A short, non-sensitive prefix narrows candidates before comparing hashes.
 
 ### Player profiles
@@ -179,6 +181,30 @@ create unique index player_profiles_one_owned_group_profile_idx
 ~~~
 
 Group profiles may exist without an account. `is_guest = true` identifies a manually created/admin-managed **Guest** with no linked user account; the UI must label it `Convidado`/`Guest`. When a user joins a group, the service creates or links one owned profile in that group; Join then uses it automatically. A verified user who enters by game code receives or reuses an owned profile with game-only access and cannot browse the group directory; it is not a manual Guest.
+
+### Admin skill voting
+
+Level and mobility are group-wide, governed attributes. Store each admin ballot separately; never let a client overwrite the aggregate without recording the vote.
+
+~~~sql
+create type player_skill_attribute as enum ('level', 'mobility');
+
+create table player_skill_votes (
+  group_id uuid not null references groups(id) on delete cascade,
+  player_id uuid not null references player_profiles(id) on delete cascade,
+  admin_user_id uuid not null references users(id) on delete cascade,
+  attribute player_skill_attribute not null,
+  value smallint not null,
+  updated_at timestamptz not null default now(),
+  primary key (group_id, player_id, admin_user_id, attribute),
+  check (
+    (attribute = 'level' and value between 1 and 5)
+    or (attribute = 'mobility' and value between 1 and 3)
+  )
+);
+~~~
+
+Only active admins may vote. An admin cannot read, write, or manually override their own `level` or `mobility`; they may still edit their own position and condition. Votes remain open indefinitely: every valid vote immediately recomputes the average over submitted ballots, rounded half-up, and updates the group player profile. Missing/admin-absent ballots never block team balancing. A later vote changes the aggregate immediately and leaves an audit trail through `updated_at` (or a separate append-only audit table in production).
 
 ### Games and access
 
@@ -328,6 +354,7 @@ create table invites (
   type invite_type not null,
   group_id uuid null references groups(id) on delete cascade,
   game_id uuid null references games(id) on delete cascade,
+  target_user_id uuid null references users(id) on delete cascade,
   created_by_user_id uuid not null references users(id),
   expires_at timestamptz null,
   max_uses integer null check (max_uses is null or max_uses > 0),
@@ -360,24 +387,28 @@ create table notification_recipients (
 );
 ~~~
 
+An admin-panel promotion invitation is a `group_admin` invite with a non-null `target_user_id`; redeem it only for that active group participant, after email verification and group-passcode confirmation. General admin links may keep `target_user_id` null for the existing shared-link flow.
+
 Every active group admin receives their own recipient row. Dismissing a message affects only that admin. Dismiss all sets `dismissed_at` only for the current admin's recipient rows.
 
 ## Mandatory business rules
 
-1. Creating a group creates an active admin membership for its creator.
-2. Only active group admins may edit or delete groups, manage the group player directory and statistics, manage any group game, or create group-admin invitations.
-3. An active group participant may create a game. They may manage only a game they created (roster, payments, player creation, and balancing), without access to group administration, statistics, player skills, or other games' management.
-4. Active group members may invite a guest to a game they can access.
-5. A group member joins using their linked profile, without approval. A full game places them in the waiting list.
-6. Guests never receive the group directory.
-7. A game code/link requires a verified profile and immediately adds its game-only profile to the main list or waiting list. It never grants group membership or group-directory access.
-8. A game-only user may update only their own payment and remove only their own entry.
-9. Join, leave, and payment changes notify all active group admins.
-10. A participant may update only their own payment state, except while acting as organizer of their own game under rule 3.
+1. Creating a group creates an active **owner** membership for its creator.
+2. Only active group owners/admins may edit groups, manage the group player directory and statistics, manage any group game, create group-admin invitations, or manage admins. Only the active **owner** may delete the group, after the group passcode is confirmed. Admins may not remove/demote the owner.
+3. When an owner leaves, ownership transfers to the active member with the most confirmed game participations; ties are resolved by oldest membership. The owner cannot leave when no eligible successor exists.
+4. An active group participant may create a game. They may manage only a game they created (roster, payments, player creation, and balancing), without access to group administration, statistics, player skills, or other games' management.
+5. Active group members may invite a guest to a game they can access.
+6. A group member joins using their linked profile, without approval. A full game places them in the waiting list.
+7. Guests never receive the group directory.
+8. A game code/link requires a verified profile and immediately adds its game-only profile to the main list or waiting list. It never grants group membership or group-directory access.
+9. A game-only user may update only their own payment and remove only their own entry.
+10. Join, leave, and payment changes notify all active group admins.
+11. A participant may update only their own payment state, except while acting as organizer of their own game under rule 4.
 12. Names are unique, ignoring case and repeated spaces, inside each group and active game list.
 13. Changing a group passcode requires the current passcode and does not invalidate existing memberships.
 14. Balancing includes only paid confirmed main-list participants. Standard quota: two balances for an admin-created game, one for a participant-created game; automatic and manual balances share it. One final manual rebalance is available only in the last 15 minutes before the game. Roster/payment changes do not reset either quota.
-15. Finished games are immutable to both admins and participants except for deletion by an authorized admin. Their API representation is read-only and may include the latest valid team-balance snapshot.
+15. Finished games are immutable to both admins and participants except for deletion by the authorized owner. Their API representation is read-only and may include the latest valid team-balance snapshot.
+16. Admin skill votes are incremental: each vote recalculates the current level/mobility average; no unanimous or complete quorum is required. A player never votes on or sees their own level/mobility in game-management lists.
 
 ## Suggested HTTP API
 

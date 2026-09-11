@@ -198,6 +198,11 @@ export function GroupSelector({
   const [groupError, setGroupError] = useState("");
   const [joinError, setJoinError] = useState("");
   const [gameCodeError, setGameCodeError] = useState("");
+  const canChangeGroupPasscode = Boolean(
+    groupToRename?.admins?.some(
+      (admin) => admin.userId === user?.id && admin.role === "owner",
+    ),
+  );
   const memberGroups = groups.filter(
     (group) =>
       !(user?.leftGroupIds ?? []).includes(group.id) &&
@@ -499,6 +504,9 @@ export function GroupSelector({
           {memberGroups.length ? (
             memberGroups.map((group, index) => {
               const isAdmin = adminGroupIds.includes(group.id);
+              const isCreator = group.admins?.some(
+                (admin) => admin.userId === user?.id && admin.role === "owner",
+              );
               return (
                 <Fragment key={group.id}>
                   <article
@@ -508,13 +516,35 @@ export function GroupSelector({
                       <div className="group-name-line">
                         <strong>{group.name}</strong>
                         {isAdmin && (
-                          <span className="group-admin-badge">
-                            <svg aria-hidden="true" viewBox="0 0 24 24">
-                              <path d="M12 3 20 6v5c0 5-3.4 8.1-8 10-4.6-1.9-8-5-8-10V6l8-3Z" />
-                              <path d="M9 12.5 11 14.5l4-4" />
-                            </svg>
-                            Admin
-                          </span>
+                          <>
+                            <span className="group-admin-badge">
+                              <svg aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M12 3 20 6v5c0 5-3.4 8.1-8 10-4.6-1.9-8-5-8-10V6l8-3Z" />
+                                <path d="M9 12.5 11 14.5l4-4" />
+                              </svg>
+                              {isCreator
+                                ? localize("Criador/Admin", language)
+                                : "Admin"}
+                            </span>
+                            <button
+                              aria-label={localize("Editar grupo", language)}
+                              className="group-name-edit-button"
+                              onClick={() => {
+                                setRenamedGroupName(group.name);
+                                setNewPasscode("");
+                                setEditCurrentPasscode("");
+                                setGroupError("");
+                                setGroupToRename(group);
+                              }}
+                              title={localize("Editar grupo", language)}
+                              type="button"
+                            >
+                              <svg aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                              </svg>
+                            </button>
+                          </>
                         )}
                       </div>
                       <small>
@@ -692,6 +722,7 @@ export function GroupSelector({
                   return;
                 }
                 if (
+                  canChangeGroupPasscode &&
                   newPasscode.trim() &&
                   editCurrentPasscode !== groupToRename.organizerPasscode
                 ) {
@@ -701,7 +732,7 @@ export function GroupSelector({
                 if (nextName !== groupToRename.name) {
                   onRename(groupToRename.id, nextName);
                 }
-                if (newPasscode.trim()) {
+                if (canChangeGroupPasscode && newPasscode.trim()) {
                   onChangePasscode(groupToRename.id, newPasscode);
                 }
                 setNewPasscode("");
@@ -723,24 +754,28 @@ export function GroupSelector({
                   {localize(groupError, language)}
                 </small>
               )}
-              <PasswordField
-                language={language}
-                placeholder={localize(
-                  "Senha atual (obrigatória para trocar)",
-                  language,
-                )}
-                required={Boolean(newPasscode.trim())}
-                value={editCurrentPasscode}
-                onChange={setEditCurrentPasscode}
-              />
-              <PasswordField
-                language={language}
-                minLength={4}
-                placeholder={localize("Nova senha (opcional)", language)}
-                required={false}
-                value={newPasscode}
-                onChange={setNewPasscode}
-              />
+              {canChangeGroupPasscode && (
+                <>
+                  <PasswordField
+                    language={language}
+                    placeholder={localize(
+                      "Senha atual (obrigatória para trocar)",
+                      language,
+                    )}
+                    required={Boolean(newPasscode.trim())}
+                    value={editCurrentPasscode}
+                    onChange={setEditCurrentPasscode}
+                  />
+                  <PasswordField
+                    language={language}
+                    minLength={4}
+                    placeholder={localize("Nova senha (opcional)", language)}
+                    required={false}
+                    value={newPasscode}
+                    onChange={setNewPasscode}
+                  />
+                </>
+              )}
               <div className="confirm-dialog-actions">
                 <button
                   className="secondary"
