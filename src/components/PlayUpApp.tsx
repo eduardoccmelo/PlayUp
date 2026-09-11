@@ -1401,10 +1401,12 @@ export function PlayUpApp() {
           setEntered(false);
           setPick("");
           setAccess(
-            selectedGame.createdByRole === "participant" &&
-              selectedGame.createdByUserId === currentUser?.id
-              ? "participant-manage"
-              : "player",
+            adminGroupIds.includes(group.id)
+              ? "admin"
+              : selectedGame.createdByRole === "participant" &&
+                  selectedGame.createdByUserId === currentUser?.id
+                ? "participant-manage"
+                : "player",
           );
         }}
         onLeaveMyGame={leaveMyGame}
@@ -3276,7 +3278,7 @@ function PlayerView({
                           {localize(isCurrentUserOrganizer ? "Gerenciar" : "Ver", language)}
                         </button>
                         <button
-                          className="session-action-button confirm"
+                          className={`session-action-button confirm${isCurrentUserWaiting ? " waiting-list-button" : ""}`}
                           disabled={
                             isEnded ||
                             g.cancelled ||
