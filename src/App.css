@@ -1364,7 +1364,11 @@ header {
   gap: 8px;
 }
 .admin-panel-header-actions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   white-space: nowrap;
+  text-align: center;
 }
 .admin-panel-header-actions .secondary {
   padding-inline: 10px;
@@ -1806,7 +1810,13 @@ header {
   border-top: 1px solid #edf0ed;
 }
 .directory-player-results > div > span {
+  min-width: 0;
   margin-right: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.directory-player-results > div > .session-action-button {
+  flex: 0 0 auto;
 }
 .directory-player-results > div:first-child {
   border-top: 0;
