@@ -743,7 +743,7 @@ export function GroupSelector({
                   <PasswordField
                     language={language}
                     placeholder={localize(
-                      "Senha atual (obrigatória para trocar)",
+                      "Senha atual (obrigatória)",
                       language,
                     )}
                     required={Boolean(newPasscode.trim())}

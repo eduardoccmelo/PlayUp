@@ -97,8 +97,7 @@ export const translations: Record<
     "CONVIDAR ADMINS": "INVITE ADMINS",
     "EDITAR GRUPO": "EDIT GROUP",
     "Nova senha (opcional)": "New passcode (optional)",
-    "Senha atual (obrigatória para trocar)":
-      "Current passcode (required to change it)",
+    "Senha atual (obrigatória)": "Current passcode (required)",
     Confirmar: "Confirm",
     "Copiar código": "Copy code",
     "Código copiado.": "Code copied.",
@@ -119,7 +118,8 @@ export const translations: Record<
       "This invite grants access to view the group's active games.",
     "Este convite libera apenas este jogo para o convidado.":
       "This invite grants access only to this game.",
-    "Link e código copiados nesta demonstração.": "Link and code copied in this demo.",
+    "Link e código copiados nesta demonstração.":
+      "Link and code copied in this demo.",
     "Criar jogo": "Create game",
     "Salvar alterações": "Save changes",
     "Editar detalhes do jogo": "Edit game details",
@@ -159,7 +159,7 @@ export const translations: Record<
     Participando: "Attending",
     Solicitar: "Request",
     "Lista de espera": "Waiting list",
-    "Na lista de espera": "On waiting list",
+    "Em espera": "On waiting",
     "A lista está vazia.": "The list is empty.",
     "Participação confirmada.": "Attendance confirmed.",
     "Seu pedido foi enviado ao organizador.":
@@ -383,7 +383,8 @@ export const translations: Record<
     "Criar grupo": "Create group",
     "Entrar em um grupo": "Join a group",
     "ENTRAR EM GRUPO": "JOIN GROUP",
-    "Insira o código do grupo para continuar.": "Enter the group code to continue.",
+    "Insira o código do grupo para continuar.":
+      "Enter the group code to continue.",
     "Acesso liberado nesta demonstração.": "Access is enabled in this demo.",
     "Você só pode criar até 3 grupos no momento.":
       "You can create up to 3 groups at the moment.",
@@ -429,7 +430,8 @@ export const translations: Record<
     "Ver jogos": "View games",
     "Sair do grupo": "Leave group",
     "SAIR DO GRUPO": "LEAVE GROUP",
-    "Você deixará de ver os jogos deste grupo.": "You will no longer see this group's games.",
+    "Você deixará de ver os jogos deste grupo.":
+      "You will no longer see this group's games.",
     "Alterar senha": "Change passcode",
     "Nova senha": "New passcode",
     "Nenhum grupo criado.": "No groups created.",

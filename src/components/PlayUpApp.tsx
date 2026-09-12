@@ -2848,7 +2848,7 @@ export function PlayUpApp() {
               />
               <input
                 placeholder={localize(
-                  "Senha atual (obrigatória para trocar)",
+                  "Senha atual (obrigatória)",
                   language,
                 )}
                 type="password"
@@ -3394,7 +3394,7 @@ function PlayerView({
                             isCurrentUserAttending
                               ? "Participando"
                               : isCurrentUserWaiting
-                                ? "Na lista de espera"
+                                ? "Em espera"
                                 : "Participar",
                             language,
                           )}
