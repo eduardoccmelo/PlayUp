@@ -5,7 +5,7 @@ export const SEED_GROUP_ID = "seed-dev";
 export const SEED_GROUP_NAME = "Test Group";
 export const SEED_GROUP_PASSCODE = "admin";
 export const PARTICIPANT_SEED_GROUP_ID = "city-night-7f3a";
-export const SEED_VERSION = 16;
+export const SEED_VERSION = 17;
 
 const seededAdmins = (
   members: Array<[string, number, string, "owner" | "admin"]>,
@@ -323,7 +323,32 @@ export const participantOrganizerDemoGame = (
   createdByRole: "participant",
 });
 
-export const seedGroups = (): PlayerGroup[] => [
+const applyUnvotedSkillDefaults = (group: PlayerGroup): PlayerGroup => {
+  const votesByPlayer = new Map<number, PlayerSkillVote[]>();
+  for (const vote of group.skillVotes ?? []) {
+    votesByPlayer.set(vote.playerId, [
+      ...(votesByPlayer.get(vote.playerId) ?? []),
+      vote,
+    ]);
+  }
+  return {
+    ...group,
+    players: group.players.map((player) => {
+      const votes = votesByPlayer.get(player.id) ?? [];
+      return {
+        ...player,
+        level: votes.some((vote) => vote.level !== undefined)
+          ? player.level
+          : 3,
+        mobility: votes.some((vote) => vote.mobility !== undefined)
+          ? player.mobility
+          : "neutro",
+      };
+    }),
+  };
+};
+
+export const seedGroups = (): PlayerGroup[] => ([
   seedGroup(),
   {
     id: PARTICIPANT_SEED_GROUP_ID,
@@ -440,7 +465,7 @@ export const seedGroups = (): PlayerGroup[] => [
     admins: seededAdmins([["downtown-iara", 601, "Iara Viana", "owner"]]),
     skillVotes: [],
   },
-];
+] as PlayerGroup[]).map(applyUnvotedSkillDefaults);
 
 export function seedBrowserStorage() {
   const existingGroups = getStoredValue<PlayerGroup[]>("playup.groups.v1", []);
