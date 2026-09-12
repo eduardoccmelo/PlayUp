@@ -50,7 +50,9 @@ export function AdminPanel({
   const [deletePasscode, setDeletePasscode] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const inviteCandidates = eligiblePlayers.filter(
-    (player) => !adminUserIds.has(player.ownerUserId ?? ""),
+    (player) =>
+      typeof player.ownerUserId === "string" &&
+      !adminUserIds.has(player.ownerUserId),
   );
   const [selectedInvitePlayerId, setSelectedInvitePlayerId] = useState<number | null>(
     inviteCandidates[0]?.id ?? null,

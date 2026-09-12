@@ -1,5 +1,4 @@
 import { Fragment, useState, type FormEvent } from "react";
-import { SEED_GROUP_ID } from "../dev/seeds";
 import { localize, type Language } from "../i18n";
 import type { CurrentUser, GameSession, PlayerGroup } from "../types";
 import { hasGameEnded, normalizeText, weekdayName } from "../utils/game";
@@ -9,12 +8,6 @@ import {
   groupPlayerInviteCode,
 } from "../utils/inviteCodes";
 import { Header } from "./Header";
-
-type GroupAction = {
-  group: PlayerGroup;
-  type: "enter" | "change-passcode" | "delete";
-  step: "verify" | "update-passcode" | "confirm-delete";
-};
 
 type GroupInvite = {
   group: PlayerGroup;
@@ -31,7 +24,6 @@ type GroupSelectorProps = {
   onProfile: () => void;
   onCreate: (name: string, passcode: string) => void;
   onChoose: (group: PlayerGroup) => void;
-  onDelete: (groupId: string) => void;
   onChangePasscode: (groupId: string, passcode: string) => void;
   onRename: (groupId: string, name: string) => void;
   myGames: GameSession[];
@@ -166,7 +158,6 @@ export function GroupSelector({
   onProfile,
   onCreate,
   onChoose,
-  onDelete,
   onChangePasscode,
   onRename,
   myGames,
@@ -183,10 +174,7 @@ export function GroupSelector({
   const [gameCode, setGameCode] = useState("");
   const [name, setName] = useState("");
   const [passcode, setPasscode] = useState("");
-  const [groupAction, setGroupAction] = useState<GroupAction | null>(null);
-  const [currentPasscode, setCurrentPasscode] = useState("");
   const [newPasscode, setNewPasscode] = useState("");
-  const [passcodeError, setPasscodeError] = useState("");
   const [groupToRename, setGroupToRename] = useState<PlayerGroup | null>(null);
   const [groupInvite, setGroupInvite] = useState<GroupInvite | null>(null);
   const [inviteCodeCopied, setInviteCodeCopied] = useState<
@@ -209,10 +197,7 @@ export function GroupSelector({
       (adminGroupIds.includes(group.id) ||
         group.players.some(
           (player) =>
-            (player.accessScope !== "game" && player.ownerUserId === user?.id) ||
-            (user !== null &&
-              player.accessScope !== "game" &&
-              normalizeText(player.name) === normalizeText(user.displayName)),
+            player.accessScope !== "game" && player.ownerUserId === user?.id,
         )),
   );
   const adminGroupFromCode = groups.find(
@@ -276,7 +261,6 @@ export function GroupSelector({
     setIsAddingGame(false);
     setGameCodeError("");
   };
-  const closeGroupAction = () => setGroupAction(null);
   const openGroupInvite = (group: PlayerGroup, canInviteAdmins: boolean) => {
     setInviteCodeCopied(null);
     setGroupInvite({ group, canInviteAdmins });
@@ -919,146 +903,6 @@ export function GroupSelector({
                 {localize("Fechar", language)}
               </button>
             </div>
-          </section>
-        </div>
-      )}
-      {groupAction && (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            aria-modal="true"
-            className="confirm-dialog group-auth-modal"
-            role="dialog"
-          >
-            {groupAction.step === "verify" && (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (currentPasscode !== groupAction.group.organizerPasscode) {
-                    setPasscodeError("Senha atual incorreta.");
-                    return;
-                  }
-                  setPasscodeError("");
-                  if (groupAction.type === "enter") {
-                    onChoose(groupAction.group);
-                    closeGroupAction();
-                    return;
-                  }
-                  setGroupAction({
-                    ...groupAction,
-                    step:
-                      groupAction.type === "delete"
-                        ? "confirm-delete"
-                        : "update-passcode",
-                  });
-                }}
-              >
-                <h2>
-                  {localize(
-                    groupAction.type === "enter"
-                      ? "Entrar como organizador"
-                      : "Confirmar senha",
-                    language,
-                  )}
-                </h2>
-                <p>
-                  {localize(
-                    "Digite a senha atual dos organizadores para continuar.",
-                    language,
-                  )}
-                </p>
-                <PasswordField
-                  autoFocus
-                  language={language}
-                  placeholder={localize("Senha atual", language)}
-                  value={currentPasscode}
-                  onChange={setCurrentPasscode}
-                />
-                {groupAction.type === "enter" &&
-                  groupAction.group.id === SEED_GROUP_ID && (
-                    <small className="error">
-                      {localize("Dica de senha: admin", language)}
-                    </small>
-                  )}
-                {passcodeError && (
-                  <small className="error">
-                    {localize(passcodeError, language)}
-                  </small>
-                )}
-                <div className="confirm-dialog-actions">
-                  <button
-                    className="secondary"
-                    type="button"
-                    onClick={closeGroupAction}
-                  >
-                    {localize("Cancelar", language)}
-                  </button>
-                  <button className="primary">
-                    {localize("Continuar", language)}
-                  </button>
-                </div>
-              </form>
-            )}
-            {groupAction.step === "update-passcode" && (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!newPasscode.trim()) return;
-                  onChangePasscode(groupAction.group.id, newPasscode);
-                  closeGroupAction();
-                }}
-              >
-                <h2>{localize("Alterar senha", language)}</h2>
-                <p>{groupAction.group.name}</p>
-                <PasswordField
-                  autoFocus
-                  language={language}
-                  minLength={4}
-                  placeholder={localize("Nova senha", language)}
-                  value={newPasscode}
-                  onChange={setNewPasscode}
-                />
-                <div className="confirm-dialog-actions">
-                  <button
-                    className="secondary"
-                    type="button"
-                    onClick={closeGroupAction}
-                  >
-                    {localize("Cancelar", language)}
-                  </button>
-                  <button className="primary">
-                    {localize("Salvar", language)}
-                  </button>
-                </div>
-              </form>
-            )}
-            {groupAction.step === "confirm-delete" && (
-              <>
-                <h2>{localize("Excluir grupo", language)}</h2>
-                <p>
-                  <strong>{groupAction.group.name}</strong>
-                </p>
-                <p>
-                  {localize(
-                    "Todos os jogos e jogadores deste grupo serão apagados.",
-                    language,
-                  )}
-                </p>
-                <div className="confirm-dialog-actions">
-                  <button className="secondary" onClick={closeGroupAction}>
-                    {localize("Cancelar", language)}
-                  </button>
-                  <button
-                    className="danger-button"
-                    onClick={() => {
-                      onDelete(groupAction.group.id);
-                      closeGroupAction();
-                    }}
-                  >
-                    {localize("Excluir grupo", language)}
-                  </button>
-                </div>
-              </>
-            )}
           </section>
         </div>
       )}

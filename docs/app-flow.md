@@ -38,6 +38,8 @@ flowchart TD
 
 There is no global “admin account” mode. A user can be an admin in Group A, a participant in Group B, and have guest-only access to Game C.
 
+Account identity is the stable user ID associated with a verified email. Display names are labels only: equal names must never grant membership, payment self-service, organizer access, or administrative authority.
+
 ## Authority inside a group
 
 | Capability | Group admin | Group participant | Guest |
@@ -55,9 +57,11 @@ When a participant creates a game, the game records `createdByUserId` and `creat
 
 ## Group admin panel and skill voting
 
-The group creator is stored as `owner`; other administrators are `admin`. Both can operate the group today, but only the owner may delete the group (with the group passcode) and the owner cannot be removed through the admin panel. When an owner leaves, ownership transfers to the most active remaining member, then to the oldest membership on a tie. Admins can create an individual invitation for an existing participant to become an admin. Acceptance preserves that person's player membership and adds the admin role.
+Each group has exactly one creator-level `owner`; other administrators are `admin`. Only the owner may delete the group (with the group passcode) or change its passcode. An admin may change only the group name. The owner cannot be removed through the admin panel. When an owner leaves, ownership transfers to the most active remaining member, then to the oldest membership on a tie; leaving is blocked when there is no eligible successor. Admins can create an individual invitation for an existing participant to become an admin. Acceptance preserves that person's player membership and adds the admin role.
 
 Admins vote independently on every group player's level (1–5) and mobility (1–3). A vote is saved immediately and the current mean is applied immediately, rounding `.5` upward. A missing vote never blocks the current value or team balancing; that admin may vote later and update the aggregate. An admin never sees, votes on, or manually edits their own level/mobility. They may edit only their own position and condition. Players' own level and mobility are also hidden from their row in game-management lists.
+
+Manually created players are **Guest** records: they have no user account and are visibly tagged `Convidado`/`Guest` in group and game lists. Their `createdByUserId` records who created them. If an active admin creates a player in the group directory, the level and mobility entered in that creation form are immediately saved as that admin's first votes for the new player. A game-only guest created by a participant organizer does not enter the group-wide voting board.
 
 ## Game roster flow
 
@@ -105,3 +109,4 @@ Admin-created games show the latest trigger, the responsible admin when relevant
 5. Membro do grupo entra direto no jogo com o próprio perfil; se estiver cheio, vai para espera. Quem recebeu apenas o convite do jogo tem esse mesmo acesso limitado ao jogo, sem entrar no grupo. Cada pessoa altera apenas o próprio pagamento e sai apenas da própria vaga.
 6. Balanceamento usa apenas jogadores confirmados e pagos. Jogo de admin tem duas gerações regulares; jogo criado por participante tem uma. Depois existe apenas um rebalanceamento manual final, liberado nos últimos 15 minutos antes do jogo. Mudanças na lista não reiniciam os limites.
 7. Jogador criado manualmente recebe a etiqueta **Convidado/Guest**: não possui conta nem acesso ao app. Um usuário com e-mail confirmado e acesso apenas a um jogo é um usuário registrado com escopo de jogo, não um convidado manual.
+8. Cada grupo possui um único **criador/owner**. Só ele altera a senha ou deleta o grupo; admin comum altera somente o nome. O Painel do admin concentra estatísticas, admins, convite direcionado e a votação de nível/velocidade. Ao criar um convidado manualmente como admin, as notas informadas já são registradas como o primeiro voto desse admin.

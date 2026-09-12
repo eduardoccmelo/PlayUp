@@ -38,7 +38,7 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 
 - Criar, editar, visualizar e excluir jogos.
 - Cadastro geral de jogadores do grupo.
-- Edição completa dos atributos de cada jogador.
+- Edição de nome, posição e condição de cada jogador, ou exclusão do cadastro com confirmação. Nível e velocidade são definidos pela votação dos admins, não por alteração individual.
 - Exclusão de um jogador do cadastro geral, com confirmação.
 - Consulta e dispensa de notificações de alteração de pagamento.
 - Inclusão e remoção de jogadores da lista de cada jogo.
@@ -47,10 +47,19 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 - Geração de times apenas com jogadores pagos da lista principal. Lista completa e totalmente paga gera times automaticamente; os limites dependem de o jogo ser de admin ou de organizador participante.
 - Visualização dos pontos de balanceamento de cada jogador, exclusiva do painel administrativo.
 
+### Governança dos admins e notas dos jogadores
+
+- Cada grupo tem exatamente um **criador** e pode ter outros admins. Só o criador pode deletar o grupo ou trocar a senha; um admin comum pode alterar apenas o nome do grupo.
+- O **Painel do admin** reúne estatísticas, convite direcionado para promover um participante, a lista de admins e a votação de atributos.
+- O criador não pode ser removido. Se sair, a hierarquia passa para o membro restante com mais participações confirmadas; em empate, para a associação mais antiga. Sem sucessor elegível, o criador não pode sair.
+- Cada admin vota separadamente para nível `1–5` e velocidade `1–3` de todos os outros jogadores. A média atual é aplicada imediatamente, com arredondamento de `.5` para cima; votos ausentes não bloqueiam o balanceamento.
+- Um admin não vê, não vota e não altera o próprio nível/velocidade. Pode alterar apenas a própria posição e condição.
+
 ### Participantes, organizadores de jogos e guests
 
 - Painel único para grupos e próximos jogos pessoais.
 - Membro do grupo entra no jogo com o próprio nome, sem aprovação.
+- Associação ao grupo, pagamento próprio e autoridade de organizador usam o ID estável do perfil, nunca apenas um nome exibido igual.
 - Se o jogo estiver cheio, a entrada vai para a lista de espera.
 - Quem não é membro pode adicionar um jogo por código, confirmar a identidade e entrar na lista principal ou de espera sem entrar no grupo.
 - Usuário com acesso somente ao jogo altera apenas a própria vaga e pagamento.
@@ -58,6 +67,7 @@ PlayUp é uma aplicação web para organizar partidas esportivas em grupo. Um me
 - Um participante do grupo pode criar um jogo. Ele recebe controles de organizador somente nos jogos que criou: criar jogadores, gerenciar a lista e pagamentos daquele jogo e gerar times. Ele nunca recebe configurações do grupo, estatísticas, atributos do cadastro geral ou controle dos demais jogos.
 - Em jogos criados por participante, nível, posição, condição, velocidade e pontos dos jogadores ficam ocultos para esse organizador.
 - Nomes não podem ser duplicados dentro de um grupo ou de uma lista ativa de jogo.
+- Jogador criado manualmente recebe a etiqueta **Convidado**. Não possui conta nem acesso ao app e guarda quem o criou. Quando um admin o cria, o nível e a velocidade escolhidos já entram como o voto inicial desse admin.
 
 ### Jogos
 
@@ -91,7 +101,7 @@ Os jogos são ordenados cronologicamente. Um jogo encerrado sempre usa o mesmo l
 
 - Interface disponível em português e inglês.
 - Idioma inicial baseado no navegador: português para navegadores em português e inglês como padrão para os demais.
-- Troca manual de idioma na página inicial.
+- Troca manual de idioma no cabeçalho de todas as páginas.
 - Layout responsivo para desktop e celular.
 - Logotipo PlayUp no cabeçalho; clicar nele leva à página inicial quando aplicável.
 
@@ -117,7 +127,7 @@ Esses códigos servem somente para testar a interface. Em produção, devem ser 
 
 1. Crie, entre ou edite seu perfil local. O protótipo gera um novo código de acesso de demonstração a cada solicitação, válido por cinco minutos.
 2. Em **Meus grupos**, crie/entre em um grupo ou abra os jogos dele.
-3. Se você for admin daquele grupo, use **Gerenciar** para criar jogos, manter jogadores, ver estatísticas e consultar notificações de pagamento. Se for apenas participante, ainda pode criar um jogo; os controles de organizador valem somente para esse jogo.
+3. Se você for admin daquele grupo, use **Gerenciar** para criar jogos e manter jogadores. Abra o **Painel do admin** para estatísticas, gestão dos admins, convites direcionados e votação de nível/velocidade. Se for apenas participante, ainda pode criar um jogo; os controles de organizador valem somente para esse jogo.
 4. Em **Meus próximos jogos**, veja jogos em que você participa, altere seu próprio pagamento ou saia da lista.
 5. Use **Tenho um código de jogo** para um jogo fora dos seus grupos. Após confirmar a identidade, o código coloca a pessoa diretamente na lista principal ou de espera, com acesso limitado àquele jogo.
 

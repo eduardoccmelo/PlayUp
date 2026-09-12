@@ -186,7 +186,7 @@ export function LandingPage({
                 onLogout();
               }}
             >
-              Logout
+              {localize("Sair da conta", language)}
             </button>
           )}
         </div>

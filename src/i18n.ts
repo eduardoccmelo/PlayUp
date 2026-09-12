@@ -60,6 +60,7 @@ export const translations: Record<
     Entrar: "Enter",
     Voltar: "Back",
     Sair: "Exit",
+    "Sair da conta": "Sign out",
     JOGOS: "GAMES",
     Jogos: "Games",
     Passados: "Past",
@@ -87,6 +88,7 @@ export const translations: Record<
     "Seu nível e velocidade são definidos pelos outros admins.":
       "Your level and speed are defined by the other admins.",
     "Média atual": "Current average",
+    Votos: "Votes",
     "Convidar admins": "Invite admins",
     "Convidar participante": "Invite participant",
     Compartilhar: "Share",
@@ -463,6 +465,8 @@ export const translations: Record<
     Cada: "Each",
     Pagamento: "Payment",
     neutra: "neutral",
+    neutro: "neutral",
+    Neutro: "Neutral",
     ruim: "poor",
     ataque: "attack",
     rapido: "fast",
@@ -474,38 +478,4 @@ export const translations: Record<
 };
 export function localize(value: string, language: Language) {
   return language === "pt" ? value : (translations[language][value] ?? value);
-}
-export function localizePage(language: Language) {
-  const dictionary =
-    language === "pt"
-      ? Object.fromEntries(
-          Object.entries(translations.en).map(([pt, en]) => [en, pt]),
-        )
-      : translations.en;
-  const translate = (value: string) =>
-    Object.entries(dictionary)
-      .sort(([a], [b]) => b.length - a.length)
-      .reduce((result, [from, to]) => {
-        const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const expression = new RegExp(
-          `(^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`,
-          "gu",
-        );
-        return result.replace(expression, `$1${to}`);
-      }, value);
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  const nodes: Text[] = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode as Text);
-  nodes.forEach((node) => {
-    const raw = node.nodeValue ?? "";
-    const translated = translate(raw);
-    if (translated !== raw) node.nodeValue = translated;
-  });
-  document
-    .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[placeholder]")
-    .forEach((element) => {
-      const value = element.getAttribute("placeholder");
-      if (value) element.setAttribute("placeholder", translate(value));
-    });
-  document.documentElement.lang = language;
 }

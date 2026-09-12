@@ -38,7 +38,7 @@ PlayUp is a web application for organizing group sports games. One profile can m
 
 - Create, edit, view, and delete games.
 - Maintain a group-wide player directory.
-- Edit every player attribute or remove a player from the directory with confirmation.
+- Edit player names, position, and condition or remove a player from the directory with confirmation. Level and speed are governed by the admin vote, rather than being overwritten individually.
 - Review and dismiss payment-status notifications.
 - Add or remove players from an individual game list.
 - Track payment status with a checkbox.
@@ -46,10 +46,19 @@ PlayUp is a web application for organizing group sports games. One profile can m
 - Generate teams from paid main-list players only. A full, fully paid list generates teams automatically; balancing limits depend on whether the game belongs to a group admin or a participant organizer.
 - See the score used for team balancing; this information is organizer-only.
 
+### Admin governance and player ratings
+
+- Every group has exactly one **owner** (the creator) and may have additional admins. The owner alone can delete the group and change its passcode; an admin can change only the group name.
+- The **Admin panel** contains group statistics, targeted invitations to promote an existing participant, the active admin list, and the skill-voting board.
+- The owner cannot be removed. If the owner leaves, ownership is transferred to the remaining member with the most confirmed participations; ties go to the oldest membership. An owner cannot leave without an eligible successor.
+- Each admin votes independently for every other group player: level `1–5` and speed `1–3`. The current mean is applied immediately, rounded half-up; missing votes never block balancing.
+- An admin never sees, votes on, or changes their own level/speed. They can update their own position and condition.
+
 ### Participants, game organizers, and guests
 
 - View groups and personal upcoming games from one dashboard.
 - A group member joins with their linked player name without approval.
+- Membership, self-service payments, and organizer authority are resolved from the stable profile ID, never by a matching display name.
 - When a game is full, joining places the player on its waiting list.
 - A non-member can add a game by code, verify their identity, and join the main or waiting list without joining its group.
 - A game-only user can manage only their own entry and payment state.
@@ -57,6 +66,7 @@ PlayUp is a web application for organizing group sports games. One profile can m
 - A group participant may create a game. They gain organizer controls only for games they created: create players, manage that game's list and payment state, and generate teams. They never gain group settings, statistics, player-directory attributes, or control of other games.
 - In a participant-organized game, player levels, position, condition, speed, and scoring are hidden from the organizer UI.
 - Player names cannot be duplicated within a group or an active game list.
+- A manually created player is tagged **Guest**. It has no account or app access and keeps the identifier of the person who created it. When an admin creates one, the selected level and speed are recorded as that admin's initial vote.
 
 ### Games
 
@@ -90,7 +100,7 @@ Games are displayed in chronological order. A completed game always uses the sam
 
 - Portuguese and English interface.
 - Initial language is based on browser language: Portuguese for Portuguese browsers, English otherwise.
-- Manual language switching from the landing page.
+- Manual language switching is available in the header on every page.
 - Responsive desktop and mobile layout.
 - PlayUp branding in the header; clicking the logo returns to the appropriate home screen.
 
@@ -116,7 +126,7 @@ These formats are for UI testing only. Production must use random, revocable ser
 
 1. Create, sign in to, or edit your local profile. The prototype generates a new visible demo access code for each request; it expires after five minutes.
 2. From **My groups**, create/join a group or open its games.
-3. If you are an admin of that group, use **Manage** to create games, maintain players, see statistics, and review payment-status notifications. If you are only a participant, you can still create a game; its organizer controls apply only to that game.
+3. If you are an admin of that group, use **Manage** to create games and maintain players. Open the **Admin panel** for group statistics, administrator management, targeted admin invitations, and level/speed voting. If you are only a participant, you can still create a game; its organizer controls apply only to that game.
 4. From **My next games**, view a game you are already attending, update your own payment state, or leave the list.
 5. Use **I have a game code** for a game outside your groups. After identity verification, the code places you directly in its main list or waiting list while keeping access limited to that game.
 

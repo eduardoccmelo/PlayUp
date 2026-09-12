@@ -145,11 +145,13 @@ create table group_memberships (
 
 create unique index group_memberships_one_active_idx
   on group_memberships(group_id, user_id) where left_at is null;
+create unique index group_memberships_one_active_owner_idx
+  on group_memberships(group_id) where role = 'owner' and left_at is null;
 create index group_memberships_user_active_idx
   on group_memberships(user_id, group_id) where left_at is null;
 ~~~
 
-`owner` is the immutable creator role for a group. It currently has the same operational permissions as `admin`, but preserves the hierarchy for future governance rules. An owner cannot be removed or demoted through the normal admin panel, and a group must always retain at least one active owner/admin membership.
+Every group has exactly one active `owner`; additional administrators use role `admin`. The owner is the creator-level role: only that user may delete the group or change its passcode. An admin may rename the group but cannot remove/demote the owner. When an owner leaves, transfer the sole owner role transactionally to the most active remaining member (confirmed participations), then the oldest active membership on a tie. Reject the leave when no successor exists.
 
 Use Argon2id (preferred) or bcrypt for group codes and organizer passcodes. A short, non-sensitive prefix narrows candidates before comparing hashes.
 
@@ -160,6 +162,7 @@ create table player_profiles (
   id uuid primary key default gen_random_uuid(),
   group_id uuid null references groups(id) on delete cascade,
   owner_user_id uuid null references users(id) on delete set null,
+  created_by_user_id uuid null references users(id) on delete set null,
   is_guest boolean not null default false,
   display_name text not null check (char_length(display_name) between 1 and 80),
   display_name_normalized text generated always as (
@@ -180,7 +183,7 @@ create unique index player_profiles_one_owned_group_profile_idx
   where group_id is not null and owner_user_id is not null;
 ~~~
 
-Group profiles may exist without an account. `is_guest = true` identifies a manually created/admin-managed **Guest** with no linked user account; the UI must label it `Convidado`/`Guest`. When a user joins a group, the service creates or links one owned profile in that group; Join then uses it automatically. A verified user who enters by game code receives or reuses an owned profile with game-only access and cannot browse the group directory; it is not a manual Guest.
+Group profiles may exist without an account. `is_guest = true` identifies a manually created/admin-managed **Guest** with no linked user account; the UI must label it `Convidado`/`Guest`. `created_by_user_id` records the user accountable for that manual creation. When a user joins a group, the service creates or links one owned profile in that group; Join then uses it automatically. A verified user who enters by game code receives or reuses an owned profile with game-only access and cannot browse the group directory; it is not a manual Guest.
 
 ### Admin skill voting
 
@@ -205,6 +208,8 @@ create table player_skill_votes (
 ~~~
 
 Only active admins may vote. An admin cannot read, write, or manually override their own `level` or `mobility`; they may still edit their own position and condition. Votes remain open indefinitely: every valid vote immediately recomputes the average over submitted ballots, rounded half-up, and updates the group player profile. Missing/admin-absent ballots never block team balancing. A later vote changes the aggregate immediately and leaves an audit trail through `updated_at` (or a separate append-only audit table in production).
+
+When an active admin manually creates a player, persist `created_by_user_id` and insert that creator's initial level and mobility ballots in the same transaction. A manual player created by a non-admin for a game-only roster remains a guest for that game and must not create a group-wide ballot.
 
 ### Games and access
 
@@ -394,7 +399,7 @@ Every active group admin receives their own recipient row. Dismissing a message 
 ## Mandatory business rules
 
 1. Creating a group creates an active **owner** membership for its creator.
-2. Only active group owners/admins may edit groups, manage the group player directory and statistics, manage any group game, create group-admin invitations, or manage admins. Only the active **owner** may delete the group, after the group passcode is confirmed. Admins may not remove/demote the owner.
+2. Only active group owners/admins may manage the group player directory and statistics, manage any group game, create group-admin invitations, or manage admins. Admins may rename the group; only the active **owner** may change its passcode or delete it after passcode confirmation. Admins may not remove/demote the owner.
 3. When an owner leaves, ownership transfers to the active member with the most confirmed game participations; ties are resolved by oldest membership. The owner cannot leave when no eligible successor exists.
 4. An active group participant may create a game. They may manage only a game they created (roster, payments, player creation, and balancing), without access to group administration, statistics, player skills, or other games' management.
 5. Active group members may invite a guest to a game they can access.

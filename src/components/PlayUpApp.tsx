@@ -23,7 +23,7 @@ import type {
   PlayerGroup,
   CurrentUser,
 } from "../types";
-import { localize, localizePage } from "../i18n";
+import { localize } from "../i18n";
 import { GameForm } from "./GameForm";
 import { Header } from "./Header";
 import { Teams } from "./Teams";
@@ -129,16 +129,13 @@ const createGroupId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID().slice(0, 8)
     : Math.random().toString(36).slice(2, 10);
+const createAdminInviteCode = (groupId: string, playerId: number) =>
+  `PUA-${groupId}-${playerId}-${createGroupId().toUpperCase()}`;
 const isCurrentUserPlayer = (
   player: Player | undefined,
   user: CurrentUser | null,
 ) =>
-  Boolean(
-    player &&
-    user &&
-    (player.ownerUserId === user.id ||
-      normalizeText(player.name) === normalizeText(user.displayName)),
-  );
+  Boolean(player && user && player.ownerUserId === user.id);
 const createOwnedPlayer = (players: Player[], user: CurrentUser): Player => ({
   id: nextIdentifier(players),
   name: user.displayName,
@@ -167,9 +164,6 @@ export function PlayUpApp() {
     null,
   );
   const language = languagePreference ?? browserLanguage();
-  useEffect(() => {
-    localizePage(language);
-  });
   const [access, setAccess] = useState<
     | "home"
     | "groups"
@@ -1142,13 +1136,22 @@ export function PlayUpApp() {
       return null;
     }
     const userId = currentUser?.id ?? createGroupId();
-    const hasDuplicate = groups.some((group) =>
-      group.players.some(
-        (player) =>
-          player.ownerUserId !== userId &&
-          normalizeText(player.name) === normalizeText(displayName),
-      ),
-    );
+    const hasDuplicate = groups.some((group) => {
+      const belongsToUser =
+        (group.admins ?? []).some((admin) => admin.userId === userId) ||
+        group.players.some(
+          (player) =>
+            player.ownerUserId === userId && player.accessScope !== "game",
+        );
+      return (
+        belongsToUser &&
+        group.players.some(
+          (player) =>
+            player.ownerUserId !== userId &&
+            normalizeText(player.name) === normalizeText(displayName),
+        )
+      );
+    });
     if (hasDuplicate) return "Esse nome já está na lista.";
     setGroups((currentGroups) =>
       currentGroups.map((group) => ({
@@ -1263,21 +1266,26 @@ export function PlayUpApp() {
         }}
         onChangePasscode={(groupId, organizerPasscode) =>
           setGroups((currentGroups) =>
-            currentGroups.map((group) =>
-              group.id === groupId ? { ...group, organizerPasscode } : group,
-            ),
+            currentGroups.map((group) => {
+              if (group.id !== groupId) return group;
+              const membership = (group.admins ?? []).find(
+                (admin) => admin.userId === currentUser?.id,
+              );
+              return membership?.role === "owner"
+                ? { ...group, organizerPasscode }
+                : group;
+            }),
           )
         }
         onRename={(groupId, name) =>
           setGroups((currentGroups) =>
-            currentGroups.map((group) =>
-              group.id === groupId ? { ...group, name } : group,
-            ),
-          )
-        }
-        onDelete={(groupId) =>
-          setGroups((currentGroups) =>
-            currentGroups.filter((group) => group.id !== groupId),
+            currentGroups.map((group) => {
+              if (group.id !== groupId) return group;
+              const membership = (group.admins ?? []).find(
+                (admin) => admin.userId === currentUser?.id,
+              );
+              return membership ? { ...group, name } : group;
+            }),
           )
         }
         onJoinGroup={(code, passcode) => {
@@ -1631,6 +1639,10 @@ export function PlayUpApp() {
           return true;
         }}
         onDeleteGroup={(passcode) => {
+          const membership = (activeGroup.admins ?? []).find(
+            (admin) => admin.userId === currentUser.id,
+          );
+          if (membership?.role !== "owner") return false;
           if (passcode !== activeGroup.organizerPasscode) return false;
           setGroups((currentGroups) => currentGroups.filter((group) => group.id !== activeGroup.id));
           setActiveGroupId(null);
@@ -1641,11 +1653,47 @@ export function PlayUpApp() {
           setGroups((currentGroups) => currentGroups.map((group) =>
             group.id !== activeGroup.id
               ? group
-              : { ...group, admins: (group.admins ?? []).filter((admin) => admin.userId !== userId) },
+              : (() => {
+                  const actor = (group.admins ?? []).find(
+                    (admin) => admin.userId === currentUser.id,
+                  );
+                  const target = (group.admins ?? []).find(
+                    (admin) => admin.userId === userId,
+                  );
+                  if (
+                    !actor ||
+                    !target ||
+                    userId === currentUser.id ||
+                    target.role === "owner"
+                  )
+                    return group;
+                  return {
+                    ...group,
+                    admins: (group.admins ?? []).filter(
+                      (admin) => admin.userId !== userId,
+                    ),
+                  };
+                })(),
           ));
         }}
         onCreateInvite={(playerId) => {
-          const code = `PUA-${activeGroup.id}-${playerId}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+          const membership = (activeGroup.admins ?? []).find(
+            (admin) => admin.userId === currentUser.id,
+          );
+          const player = activeGroup.players.find(
+            (candidate) => candidate.id === playerId,
+          );
+          if (
+            !membership ||
+            !player ||
+            !player.ownerUserId ||
+            player.accessScope === "game" ||
+            (activeGroup.admins ?? []).some(
+              (admin) => admin.userId === player.ownerUserId,
+            )
+          )
+            return "";
+          const code = createAdminInviteCode(activeGroup.id, playerId);
           setGroups((currentGroups) => currentGroups.map((group) =>
             group.id !== activeGroup.id
               ? group
@@ -1657,7 +1705,16 @@ export function PlayUpApp() {
           setGroups((currentGroups) => currentGroups.map((group) => {
             if (group.id !== activeGroup.id) return group;
             const player = group.players.find((candidate) => candidate.id === playerId);
-            if (!player || player.ownerUserId === currentUser.id) return group;
+            const actor = (group.admins ?? []).find(
+              (admin) => admin.userId === currentUser.id,
+            );
+            if (
+              !player ||
+              !actor ||
+              player.ownerUserId === currentUser.id ||
+              actor.playerId === player.id
+            )
+              return group;
             const previous = (group.skillVotes ?? []).find((vote) => vote.playerId === playerId && vote.adminUserId === currentUser.id);
             const nextVote = { playerId, adminUserId: currentUser.id, level: previous?.level, mobility: previous?.mobility, [field]: value ?? undefined, updatedAt: new Date().toISOString() };
             const skillVotes = [
@@ -1812,13 +1869,15 @@ export function PlayUpApp() {
             setGameId(null);
             setEditGame(null);
             setIsGameCreationOpen(false);
+            // A game opened from "My next games" must return to that dashboard,
+            // regardless of whether the viewer is an admin or the game organizer.
+            if (returnToDashboardAfterGame) {
+              setReturnToDashboardAfterGame(false);
+              setAccess("groups");
+              return;
+            }
             if (access === "participant-manage") {
-              if (returnToDashboardAfterGame) {
-                setReturnToDashboardAfterGame(false);
-                setAccess("groups");
-              } else {
-                setAccess("player");
-              }
+              setAccess("player");
             }
             return;
           }
@@ -3083,9 +3142,6 @@ function PlayerView({
   const [gameDraft, setGameDraft] = useState(emptyGame);
   const [gameCreationError, setGameCreationError] = useState("");
   const sortedPlayerIds = (playerIds: number[]) => playerIds;
-  useEffect(() => {
-    localizePage(language);
-  });
   const closeGame = () => {
     setActiveAction(null);
     setIsGameListOpen(false);
