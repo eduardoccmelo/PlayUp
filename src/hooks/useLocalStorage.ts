@@ -1,5 +1,9 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
-import { getStoredValue, saveStoredValue } from "../services/browserStorage";
+import {
+  getStoredValue,
+  hasStoredValue,
+  saveStoredValue,
+} from "../services/browserStorage";
 
 export function useLocalStorage<T>(
   key: string,
@@ -8,12 +12,9 @@ export function useLocalStorage<T>(
   const [value, setValue] = useState<T>(() => {
     const legacyPrefix = ["campo", "aberto"].join("-");
     const legacyKey = key.replace(/^playup\./, `${legacyPrefix}.`);
-    const currentValue = localStorage.getItem(key);
-    const legacyValue = localStorage.getItem(legacyKey);
+    if (hasStoredValue(key)) return getStoredValue(key, initialValue);
 
-    if (currentValue) return getStoredValue(key, initialValue);
-
-    if (legacyValue) {
+    if (hasStoredValue(legacyKey)) {
       const migratedValue = getStoredValue(legacyKey, initialValue);
       saveStoredValue(key, migratedValue);
       return migratedValue;

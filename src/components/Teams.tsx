@@ -31,7 +31,7 @@ export function Teams({ teams, language, embedded = false, showPositions = true 
           {teams.teamB.map((player) => (
             <p key={player.id}>
               {player.name}
-              {player.position === "goleiro" && " (G)"}
+              {showPositions && player.position === "goleiro" && " (G)"}
             </p>
           ))}
         </article>

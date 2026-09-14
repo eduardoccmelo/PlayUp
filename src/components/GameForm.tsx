@@ -87,8 +87,9 @@ export function GameForm({
   const text = (value: string) => localize(value, language);
   const [dateInput, setDateInput] = useState(displayDate(draft.date));
   const dateIsValid = isValidDisplayDate(dateInput);
+  const minimumDate = today();
   const dateHasError =
-    dateInput.length === 10 && (!dateIsValid || isoDate(dateInput) < today);
+    dateInput.length === 10 && (!dateIsValid || isoDate(dateInput) < minimumDate);
 
   return (
     <form className="game-form" onSubmit={onSubmit}>
@@ -115,7 +116,7 @@ export function GameForm({
               onChange({
                 ...draft,
                 date:
-                  isValidDisplayDate(value) && isoDate(value) >= today
+                  isValidDisplayDate(value) && isoDate(value) >= minimumDate
                     ? isoDate(value)
                     : "",
               });

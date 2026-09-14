@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
+import { getStoredValue, saveStoredValue } from "../services/browserStorage";
 import {
   generateBalancedTeams,
   playerScoreBreakdown,
@@ -78,12 +79,52 @@ const MAX_STANDARD_BALANCES = 2;
 const FINAL_REBALANCE_WINDOW = 15 * 60 * 1000;
 const standardBalanceLimit = (game: GameSession) =>
   game.createdByRole === "participant" ? 1 : MAX_STANDARD_BALANCES;
+const lockedBalanceWindow = (game: GameSession) => {
+  const scheduledAt = gameTimestamp(game);
+  const startAt = Date.parse(game.balanceWindowStartAt ?? "");
+  const endAt = Date.parse(game.balanceWindowEndAt ?? "");
+  return {
+    start: Number.isFinite(startAt) ? startAt : scheduledAt - FINAL_REBALANCE_WINDOW,
+    end: Number.isFinite(endAt) ? endAt : scheduledAt,
+  };
+};
+const lockBalanceWindow = (game: GameSession): GameSession => {
+  if (game.balanceWindowStartAt && game.balanceWindowEndAt) return game;
+  const { start, end } = lockedBalanceWindow(game);
+  return {
+    ...game,
+    balanceWindowStartAt: new Date(start).toISOString(),
+    balanceWindowEndAt: new Date(end).toISOString(),
+  };
+};
+/** A reschedule changes when the single final balance may be used, never its quota. */
+const reanchorBalanceWindow = (game: GameSession): GameSession => {
+  const scheduledAt = gameTimestamp(game);
+  return {
+    ...game,
+    balanceWindowStartAt: new Date(
+      scheduledAt - FINAL_REBALANCE_WINDOW,
+    ).toISOString(),
+    balanceWindowEndAt: new Date(scheduledAt).toISOString(),
+  };
+};
 const isFinalRebalanceWindow = (game: GameSession, now: number) => {
-  const start = gameTimestamp(game);
-  return now >= start - FINAL_REBALANCE_WINDOW && now < start;
+  const { start, end } = lockedBalanceWindow(game);
+  return now >= start && now < end;
 };
 const balanceCountOf = (game: GameSession) =>
   game.balanceCount ?? game.manualRebalanceCount ?? 0;
+const hasCurrentTeamRoster = (game: GameSession) => {
+  if (!game.teams) return false;
+  const assignedIds = [...game.teams.teamA, ...game.teams.teamB].map(
+    (player) => player.id,
+  );
+  return (
+    assignedIds.length === game.playerIds.length &&
+    new Set(assignedIds).size === assignedIds.length &&
+    assignedIds.every((playerId) => game.playerIds.includes(playerId))
+  );
+};
 const appendBalanceHistory = (game: GameSession, entry: BalanceHistoryEntry) =>
   [...(game.balanceHistory ?? []), entry].slice(-4);
 const resetPageScroll = () => {
@@ -95,8 +136,10 @@ const resetPageScroll = () => {
 type SavedProfile = {
   user: CurrentUser;
   groups: PlayerGroup[];
-  guestGameIds: number[];
+  /** Composite `groupId:gameId` keys; game ids alone are only unique within a group. */
+  guestGameIds: string[];
 };
+const gameKey = (groupId: string, gameId: number) => `${groupId}:${gameId}`;
 const alphabeticallyByName =
   (language: "pt" | "en") => (first: Player, second: Player) =>
     first.name.localeCompare(second.name, language === "pt" ? "pt-BR" : "en");
@@ -113,9 +156,10 @@ const nextIdentifier = (
     id: number;
   }[],
 ) => Math.max(0, ...records.map((record) => record.id)) + 1;
-const samePlayerIds = (first: number[], second: number[]) =>
+/** A player order change is not a roster change and must not spend a balance. */
+const samePlayerSet = (first: number[], second: number[]) =>
   first.length === second.length &&
-  first.every((id, index) => id === second[index]);
+  first.every((id) => second.includes(id));
 const paidPlayersFirst = (playerIds: number[], paidPlayerIds: number[]) => [
   ...playerIds.filter((playerId) => paidPlayerIds.includes(playerId)),
   ...playerIds.filter((playerId) => !paidPlayerIds.includes(playerId)),
@@ -220,19 +264,33 @@ export function PlayUpApp() {
     [updateActiveGroup],
   );
   useEffect(() => {
-    if (groups.length || localStorage.getItem("playup.groups.v1.migrated"))
+    let changed = false;
+    const nextGroups = groups.map((group) => {
+      const nextGames = group.games.map((gameSession) => {
+        const lockedGame = lockBalanceWindow(gameSession);
+        changed ||= lockedGame !== gameSession;
+        return lockedGame;
+      });
+      return nextGames === group.games || nextGames.every((gameSession, index) => gameSession === group.games[index])
+        ? group
+        : { ...group, games: nextGames };
+    });
+    if (changed) setGroups(nextGroups);
+  }, [groups, setGroups]);
+  useEffect(() => {
+    if (
+      groups.length ||
+      getStoredValue<boolean>("playup.groups.v1.migrated", false)
+    )
       return;
 
-    const legacyPlayers = JSON.parse(
-      localStorage.getItem("playup.players.v3") ?? "[]",
-    ) as Player[];
-    const legacyGames = JSON.parse(
-      localStorage.getItem("playup.sessions.v2") ?? "[]",
-    ) as GameSession[];
-    const legacyRequests = JSON.parse(
-      localStorage.getItem("playup.requests.v3") ?? "[]",
-    ) as ParticipationRequest[];
-    localStorage.setItem("playup.groups.v1.migrated", "true");
+    const legacyPlayers = getStoredValue<Player[]>("playup.players.v3", []);
+    const legacyGames = getStoredValue<GameSession[]>("playup.sessions.v2", []);
+    const legacyRequests = getStoredValue<ParticipationRequest[]>(
+      "playup.requests.v3",
+      [],
+    );
+    saveStoredValue("playup.groups.v1.migrated", true);
     if (!legacyPlayers.length && !legacyGames.length && !legacyRequests.length)
       return;
 
@@ -251,11 +309,9 @@ export function PlayUpApp() {
   const [gameId, setGameId] = useState<number | null>(null);
   const [returnToDashboardAfterGame, setReturnToDashboardAfterGame] =
     useState(false);
-  const [guestGameIds, setGuestGameIds] = useState<number[]>([]);
+  const [guestGameIds, setGuestGameIds] = useState<string[]>([]);
   const [profileRequested, setProfileRequested] = useState(false);
-  const [inviteKind, setInviteKind] = useState<
-    "group-admin" | "group-participant" | "game" | null
-  >(null);
+  const [isGameInviteOpen, setIsGameInviteOpen] = useState(false);
   const [inviteCodeCopied, setInviteCodeCopied] = useState(false);
   useEffect(() => {
     if (
@@ -399,7 +455,8 @@ export function PlayUpApp() {
       groups
         .flatMap((group) =>
           group.games.filter((gameSession) => {
-            if (guestGameIds.includes(gameSession.id)) return true;
+            if (guestGameIds.includes(gameKey(group.id, gameSession.id)))
+              return true;
             const gamePlayerIds = new Set([
               ...gameSession.playerIds,
               ...gameSession.waitlistIds,
@@ -447,6 +504,7 @@ export function PlayUpApp() {
     !adminGroupIds.includes(activeGroupId ?? ""),
   );
   const [gameForm, setGameForm] = useState(emptyGame);
+  const [gameFormError, setGameFormError] = useState("");
   const [editGame, setEditGame] = useState<number | null>(null);
   const [keepGameOpenAfterEdit, setKeepGameOpenAfterEdit] = useState(false);
   const [isGameCreationOpen, setIsGameCreationOpen] = useState(false);
@@ -463,15 +521,6 @@ export function PlayUpApp() {
   const [balanceNotice, setBalanceNotice] = useState("");
   const [cancellationNotice, setCancellationNotice] = useState("");
   const [gameToDelete, setGameToDelete] = useState<GameSession | null>(null);
-  const [isGroupEditOpen, setIsGroupEditOpen] = useState(false);
-  const [isGroupDeleteOpen, setIsGroupDeleteOpen] = useState(false);
-  const [isGroupLeaveOpen, setIsGroupLeaveOpen] = useState(false);
-  const [editedGroupName, setEditedGroupName] = useState("");
-  const [currentGroupPasscode, setCurrentGroupPasscode] = useState("");
-  const [newGroupPasscode, setNewGroupPasscode] = useState("");
-  const [groupSettingsError, setGroupSettingsError] = useState("");
-  const [groupDeletePasscode, setGroupDeletePasscode] = useState("");
-  const [groupDeleteError, setGroupDeleteError] = useState("");
   const [pendingRemoval, setPendingRemoval] = useState<(() => void) | null>(
     null,
   );
@@ -514,6 +563,7 @@ export function PlayUpApp() {
   const currentBalanceLimit = game
     ? standardBalanceLimit(game)
     : MAX_STANDARD_BALANCES;
+  const hasCurrentTeams = Boolean(game && hasCurrentTeamRoster(game));
   const isFinalBalanceAvailable =
     Boolean(game) &&
     isFinalRebalanceWindow(game!, clock) &&
@@ -537,7 +587,8 @@ export function PlayUpApp() {
         )
         .sort(currentUserFirst)
     : [];
-  const saveGames = (next: GameSession[]) => setGames(next);
+  const saveGames = (next: GameSession[]) =>
+    setGames(next.map(lockBalanceWindow));
   const refreshTeams = useCallback(
     (gameSession: GameSession, allPlayers = noPlayers): GameSession => {
       const listedPlayers = gameSession.playerIds
@@ -626,12 +677,14 @@ export function PlayUpApp() {
     const previousGame = games.find(
       (storedGame) => storedGame.id === gameSession.id,
     );
-    const rosterOrPaymentChanged =
+    const rosterChanged =
       previousGame !== undefined &&
-      (!samePlayerIds(previousGame.playerIds, gameSession.playerIds) ||
-        !samePlayerIds(previousGame.paidPlayerIds, gameSession.paidPlayerIds));
+      !samePlayerSet(previousGame.playerIds, gameSession.playerIds);
+    const paymentChanged =
+      previousGame !== undefined &&
+      !samePlayerSet(previousGame.paidPlayerIds, gameSession.paidPlayerIds);
     const refreshedGame =
-      shouldRefreshTeams && rosterOrPaymentChanged
+      shouldRefreshTeams && (rosterChanged || paymentChanged)
         ? refreshTeams(gameSession, players)
         : gameSession;
     if (refreshedGame.teams) setBalanceNotice("");
@@ -675,20 +728,20 @@ export function PlayUpApp() {
       !gameForm.maxPlayers ||
       !gameForm.paymentInfo
     ) {
-      setNotice("Preencha todos os detalhes do jogo.");
+      setGameFormError("Preencha todos os detalhes do jogo.");
       return;
     }
     if (!isValidIsoDate(gameForm.date)) {
-      setNotice("Informe uma data válida no formato DD/MM/AAAA.");
+      setGameFormError("Informe uma data válida no formato DD/MM/AAAA.");
       return;
     }
     const endTime = endTimeFromDuration(gameForm.time, gameForm.duration);
     if (!endTime) {
-      setNotice("A duração precisa terminar no mesmo dia.");
+      setGameFormError("A duração precisa terminar no mesmo dia.");
       return;
     }
-    if (!editGame && gameForm.date < today) {
-      setNotice("Não é possível criar um jogo em uma data passada.");
+    if (!editGame && gameForm.date < today()) {
+      setGameFormError("Não é possível criar um jogo em uma data passada.");
       return;
     }
     if (
@@ -703,33 +756,54 @@ export function PlayUpApp() {
             normalizeText(gameForm.courtNumber),
       )
     ) {
-      setNotice("Já existe um jogo com esses mesmos dados.");
+      setGameFormError("Já existe um jogo com esses mesmos dados.");
       return;
     }
     if (editGame) {
       const old = games.find((g) => g.id === editGame)!;
       const active = old.playerIds.slice(0, gameForm.maxPlayers);
       const overflow = old.playerIds.slice(gameForm.maxPlayers);
-      const updatedGame = refreshTeams(
-        {
-          ...old,
-          ...gameForm,
-          endTime,
-          duration: gameForm.duration,
-          courtCost: +gameForm.courtCost,
-          maxPlayers: +gameForm.maxPlayers,
-          playerIds: active,
-          waitlistIds: [...overflow, ...old.waitlistIds],
-          paidPlayerIds: old.paidPlayerIds.filter((x) => active.includes(x)),
-        },
-        players,
+      const nextGame = {
+        ...old,
+        ...gameForm,
+        endTime,
+        duration: gameForm.duration,
+        courtCost: +gameForm.courtCost,
+        maxPlayers: +gameForm.maxPlayers,
+        playerIds: active,
+        waitlistIds: [...overflow, ...old.waitlistIds],
+        paidPlayerIds: old.paidPlayerIds.filter((x) => active.includes(x)),
+      };
+      const scheduleChanged =
+        nextGame.date !== old.date || nextGame.time !== old.time;
+      const rescheduledGame = scheduleChanged
+        ? {
+            ...reanchorBalanceWindow(nextGame),
+            lastScheduleChange: {
+              previousStartsAt: new Date(gameTimestamp(old)).toISOString(),
+              currentStartsAt: new Date(gameTimestamp(nextGame)).toISOString(),
+              changedAt: new Date().toISOString(),
+              changedByName:
+                currentUser?.displayName ?? localize("Administrador", language),
+              wasBroughtForward:
+                gameTimestamp(nextGame) < gameTimestamp(old),
+            },
+          }
+        : nextGame;
+      const rosterChanged = !samePlayerSet(
+        rescheduledGame.playerIds,
+        old.playerIds,
       );
-      updateGame(updatedGame);
+      // Editing logistics, payment status, capacity without a roster change,
+      // or player ordering must never spend a balance.
+      const updatedGame = rosterChanged
+        ? refreshTeams(rescheduledGame, players)
+        : rescheduledGame;
+      updateGame(updatedGame, false);
       setGameId(keepGameOpenAfterEdit ? old.id : null);
       setKeepGameOpenAfterEdit(false);
-      setNotice("Jogo atualizado.");
     } else {
-      const g: GameSession = {
+      const g = lockBalanceWindow({
         id: nextIdentifier(games),
         ...gameForm,
         endTime,
@@ -745,15 +819,14 @@ export function PlayUpApp() {
         minPlayers: null,
         cancellationHours: 2,
         cancelled: false,
-      };
+      });
       saveGames([...games, g]);
       setGameId(g.id);
-      setIsGameCreationOpen(false);
-      setNotice("Jogo criado.");
     }
     setEditGame(null);
     setIsGameCreationOpen(false);
     setGameForm(emptyGame);
+    setGameFormError("");
   };
   const savePlayer = (e: FormEvent) => {
     e.preventDefault();
@@ -852,7 +925,7 @@ export function PlayUpApp() {
             : g;
         const filledGame = fillOpenSpots(updated);
         return editedPlayerIsPlaying ||
-          !samePlayerIds(updated.playerIds, filledGame.playerIds)
+          !samePlayerSet(updated.playerIds, filledGame.playerIds)
           ? refreshTeams(filledGame, next)
           : filledGame;
       }),
@@ -892,7 +965,9 @@ export function PlayUpApp() {
           waitlistIds: g.waitlistIds.filter((x) => x !== pid),
           paidPlayerIds: g.paidPlayerIds.filter((x) => x !== pid),
         });
-        return playerWasPlaying ? refreshTeams(filledGame, next) : filledGame;
+        return playerWasPlaying
+          ? refreshTeams(filledGame, next)
+          : filledGame;
       }),
     );
     setEntered(false);
@@ -957,37 +1032,42 @@ export function PlayUpApp() {
     return true;
   };
   const leaveMyGame = (selectedGame: GameSession) => {
+    const selectedGroup = groups.find((group) =>
+      group.games.some((gameSession) => gameSession === selectedGame),
+    );
+    if (!selectedGroup) return;
     setGroups((currentGroups) =>
       currentGroups.map((group) => {
-        const player =
-          group.players.find((item) => item.ownerUserId === currentUser?.id) ??
-          group.players.find((item) => isCurrentUserPlayer(item, currentUser));
+        if (group.id !== selectedGroup.id) return group;
+        const player = group.players.find((item) =>
+          isCurrentUserPlayer(item, currentUser),
+        );
         if (!player) return group;
         return {
           ...group,
           games: group.games.map((gameSession) => {
             if (gameSession.id !== selectedGame.id) return gameSession;
-            return refreshTeams(
-              fillOpenSpots({
-                ...gameSession,
-                playerIds: gameSession.playerIds.filter(
-                  (id) => id !== player.id,
-                ),
-                waitlistIds: gameSession.waitlistIds.filter(
-                  (id) => id !== player.id,
-                ),
-                paidPlayerIds: gameSession.paidPlayerIds.filter(
-                  (id) => id !== player.id,
-                ),
-              }),
-              group.players,
-            );
+            const updatedGame = fillOpenSpots({
+              ...gameSession,
+              playerIds: gameSession.playerIds.filter(
+                (id) => id !== player.id,
+              ),
+              waitlistIds: gameSession.waitlistIds.filter(
+                (id) => id !== player.id,
+              ),
+              paidPlayerIds: gameSession.paidPlayerIds.filter(
+                (id) => id !== player.id,
+              ),
+            });
+            return refreshTeams(updatedGame, group.players);
           }),
         };
       }),
     );
     setGuestGameIds((current) =>
-      current.filter((gameId) => gameId !== selectedGame.id),
+      current.filter(
+        (key) => key !== gameKey(selectedGroup.id, selectedGame.id),
+      ),
     );
   };
   const confirmPayment = (playerId: number, isPaid: boolean) => {
@@ -1103,11 +1183,8 @@ export function PlayUpApp() {
             ],
           },
     );
-    setGuestGameIds((ids) =>
-      ids.filter(
-        (id) =>
-          !groupToLeave.games.some((gameSession) => gameSession.id === id),
-      ),
+    setGuestGameIds((keys) =>
+      keys.filter((key) => !key.startsWith(`${groupToLeave.id}:`)),
     );
     return true;
   };
@@ -1123,7 +1200,12 @@ export function PlayUpApp() {
         (group) => !seedIds.has(group.id),
       );
       setGroups([...refreshedSeedGroups, ...savedCustomGroups]);
-      setGuestGameIds(profile.guestGameIds);
+      // Profiles saved before composite keys stored bare numeric ids; drop those.
+      setGuestGameIds(
+        ((profile.guestGameIds ?? []) as unknown[]).filter(
+          (key): key is string => typeof key === "string",
+        ),
+      );
       setCurrentUser(profile.user);
     };
     if (mode === "sign-in") {
@@ -1259,7 +1341,7 @@ export function PlayUpApp() {
           setActiveGroupId(group.id);
           setGameId(null);
           setReturnToDashboardAfterGame(false);
-          setInviteKind(null);
+          setIsGameInviteOpen(false);
           setEntered(false);
           setPick("");
           setAccess(adminGroupIds.includes(group.id) ? "admin" : "player");
@@ -1395,7 +1477,7 @@ export function PlayUpApp() {
           setActiveGroupId(group.id);
           setGameId(selectedGame.id);
           setReturnToDashboardAfterGame(true);
-          setInviteKind(null);
+          setIsGameInviteOpen(false);
           setEntered(false);
           setPick("");
           setAccess(
@@ -1453,10 +1535,9 @@ export function PlayUpApp() {
               };
             }),
           );
+          const key = gameKey(match.group.id, match.gameSession.id);
           setGuestGameIds((current) =>
-            current.includes(match.gameSession.id)
-              ? current
-              : [...current, match.gameSession.id],
+            current.includes(key) ? current : [...current, key],
           );
           setActiveGroupId(match.group.id);
           setGameId(match.gameSession.id);
@@ -1539,29 +1620,28 @@ export function PlayUpApp() {
             : undefined
         }
         onLeaveGroup={() => {
-          if (!activeGroup) return;
-          leaveGroup(activeGroup);
+          if (!activeGroup || !leaveGroup(activeGroup)) return false;
           setActiveGroupId(null);
           setAccess("groups");
+          return true;
         }}
         canCreateGame={Boolean(
           activeGroup &&
-          !adminGroupIds.includes(activeGroup.id) &&
-          (players.some(
-            (player) =>
-              player.accessScope !== "game" &&
-              isCurrentUserPlayer(player, currentUser),
-          ) ||
-            adminGroupIds.includes(activeGroup.id)),
+            !adminGroupIds.includes(activeGroup.id) &&
+            players.some(
+              (player) =>
+                player.accessScope !== "game" &&
+                isCurrentUserPlayer(player, currentUser),
+            ),
         )}
         onCreateGame={(draft) => {
           if (!isValidIsoDate(draft.date))
             return "Informe uma data válida no formato DD/MM/AAAA.";
-          if (draft.date < today)
+          if (draft.date < today())
             return "Não é possível criar um jogo em uma data passada.";
           const endTime = endTimeFromDuration(draft.time, draft.duration);
           if (!endTime) return "A duração precisa terminar no mesmo dia.";
-          const newGame: GameSession = {
+          const newGame = lockBalanceWindow({
             id: nextIdentifier(games),
             ...draft,
             endTime,
@@ -1577,7 +1657,7 @@ export function PlayUpApp() {
             teams: null,
             createdByUserId: currentUser?.id,
             createdByRole: "participant",
-          };
+          });
           setGames([...games, newGame]);
           setGameId(newGame.id);
           setAccess("participant-manage");
@@ -1847,7 +1927,15 @@ export function PlayUpApp() {
     if (!keepGameOpen) setGameId(null);
     setEditGame(gameSession.id);
     setGameForm({ ...gameSession });
+    setGameFormError("");
     setIsGameCreationOpen(true);
+  };
+  const closeGameForm = () => {
+    setEditGame(null);
+    setKeepGameOpenAfterEdit(false);
+    setGameForm(emptyGame);
+    setGameFormError("");
+    setIsGameCreationOpen(false);
   };
 
   const confirmRemoval = (removeAction: () => void) => {
@@ -1919,7 +2007,7 @@ export function PlayUpApp() {
                 className="primary hero-game-action"
                 onClick={() => {
                   setInviteCodeCopied(false);
-                  setInviteKind("game");
+                  setIsGameInviteOpen(true);
                 }}
               >
                 {localize("Convidar para este jogo", language)}
@@ -1989,6 +2077,7 @@ export function PlayUpApp() {
                 onClick={() => {
                   setEditGame(null);
                   setGameForm(emptyGame);
+                  setGameFormError("");
                   setIsGameCreationOpen(true);
                 }}
               >
@@ -2064,18 +2153,21 @@ export function PlayUpApp() {
             <p className="form-mode">
               {localize(editGame ? "EDITAR JOGO" : "NOVO JOGO", language)}
             </p>
+            {gameFormError && (
+              <small className="error">
+                {localize(gameFormError, language)}
+              </small>
+            )}
             <GameForm
               draft={gameForm}
-              onChange={setGameForm}
+              onChange={(draft) => {
+                setGameForm(draft);
+                setGameFormError("");
+              }}
               isEditing={Boolean(editGame)}
               language={language}
               onSubmit={createOrEdit}
-              onCancel={() => {
-                setEditGame(null);
-                setKeepGameOpenAfterEdit(false);
-                setGameForm(emptyGame);
-                setIsGameCreationOpen(false);
-              }}
+              onCancel={closeGameForm}
             />
           </section>
         </div>
@@ -2083,7 +2175,7 @@ export function PlayUpApp() {
       {!game && (
         <PlayerDirectoryManager
           language={language}
-          players={players.filter((player) => player.accessScope !== "game")}
+          players={players}
           currentUser={currentUser}
           onAddPlayer={(player) => {
             if (
@@ -2093,7 +2185,6 @@ export function PlayUpApp() {
                   normalizeText(player.name),
               )
             ) {
-              setNotice("Esse nome já está na lista.");
               return false;
             }
             const playerId = nextIdentifier(players);
@@ -2153,7 +2244,6 @@ export function PlayUpApp() {
                     normalizeText(updatedPlayer.name),
               )
             ) {
-              setNotice("Esse nome já está na lista.");
               return false;
             }
             const nextPlayers = players.map((player) =>
@@ -2565,8 +2655,8 @@ export function PlayUpApp() {
                     {latestBalance
                       ? latestBalance.type === "late-rebalance"
                         ? language === "pt"
-                          ? `Rebalanceamento final disparado por ${latestBalance.adminName ?? localize("Administrador", language)}.`
-                          : `Final rebalance triggered by ${latestBalance.adminName ?? localize("Administrator", language)}.`
+                          ? `Rebalanceamento final disparado por ${latestBalance.adminName ?? localize("Administrador", language)}.${latestBalance.rescheduledByName ? ` Disponibilizado antecipadamente porque o jogo foi antecipado por ${latestBalance.rescheduledByName}.` : ""}`
+                          : `Final rebalance triggered by ${latestBalance.adminName ?? localize("Administrator", language)}.${latestBalance.rescheduledByName ? ` Made available early because ${latestBalance.rescheduledByName} moved the game earlier.` : ""}`
                         : latestBalance.type === "admin"
                           ? language === "pt"
                             ? `Balanceamento disparado por ${latestBalance.adminName}. Balanceamento: ${latestBalance.count} de ${currentBalanceLimit}.`
@@ -2595,10 +2685,14 @@ export function PlayUpApp() {
                   )}
                 {isFinalBalanceAvailable && (
                   <p className="balance-availability">
-                    {localize(
-                      "Rebalanceamento final disponível: somente 1 tentativa até o início do jogo.",
-                      language,
-                    )}
+                    {game.lastScheduleChange?.wasBroughtForward
+                      ? language === "pt"
+                        ? `Rebalanceamento final disponibilizado antecipadamente: o jogo foi antecipado por ${game.lastScheduleChange.changedByName}.`
+                        : `Final rebalance made available early: ${game.lastScheduleChange.changedByName} moved the game earlier.`
+                      : localize(
+                          "Rebalanceamento final disponível: somente 1 tentativa até o início do jogo.",
+                          language,
+                        )}
                   </p>
                 )}
                 {game.lateRebalanceUsed && (
@@ -2641,6 +2735,11 @@ export function PlayUpApp() {
                           adminName:
                             currentUser?.displayName ??
                             localize("Administrador", language),
+                          rescheduledByName:
+                            isLateRebalance &&
+                            game.lastScheduleChange?.wasBroughtForward
+                              ? game.lastScheduleChange.changedByName
+                              : undefined,
                           count: isLateRebalance ? undefined : nextBalanceCount,
                         }),
                         lateRebalanceUsed:
@@ -2651,14 +2750,14 @@ export function PlayUpApp() {
                   }}
                 >
                   {localize(
-                    game.teams ? "Balancear novamente" : "Gerar times",
+                    hasCurrentTeams ? "Balancear novamente" : "Gerar times",
                     language,
                   )}
                 </button>
                 {balanceNotice && (
                   <p className="generate-notice">{balanceNotice}</p>
                 )}
-                {game.teams && (
+                {hasCurrentTeams && game.teams && (
                   <Teams
                     embedded
                     teams={game.teams}
@@ -2679,11 +2778,14 @@ export function PlayUpApp() {
             role="dialog"
           >
             <p className="form-mode">
-              {localize(
-                editPlayer !== null
-                  ? "Editar jogador"
-                  : "Adicionar novo jogador",
-                language,
+              {editPlayer !== null ? (
+                <>
+                  {localize("Editar jogador", language)}
+                  {players.find((player) => player.id === editPlayer)?.isGuest &&
+                    ` (${language === "pt" ? "Convidado" : "Guest"})`}
+                </>
+              ) : (
+                localize("Adicionar novo jogador", language)
               )}
             </p>
             {playerFormError && (
@@ -2806,186 +2908,6 @@ export function PlayUpApp() {
           </section>
         </div>
       )}
-      {isGroupEditOpen && activeGroup && (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            aria-modal="true"
-            className="confirm-dialog group-auth-modal"
-            role="dialog"
-          >
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (
-                  newGroupPasscode &&
-                  currentGroupPasscode !== activeGroup.organizerPasscode
-                ) {
-                  setGroupSettingsError("Senha atual incorreta.");
-                  return;
-                }
-                setGroups((currentGroups) =>
-                  currentGroups.map((group) =>
-                    group.id === activeGroup.id
-                      ? {
-                          ...group,
-                          name: editedGroupName.trim() || group.name,
-                          organizerPasscode:
-                            newGroupPasscode || group.organizerPasscode,
-                        }
-                      : group,
-                  ),
-                );
-                setIsGroupEditOpen(false);
-              }}
-            >
-              <p className="form-mode">{localize("EDITAR GRUPO", language)}</p>
-              <input
-                autoFocus
-                maxLength={20}
-                required
-                value={editedGroupName}
-                onChange={(event) => setEditedGroupName(event.target.value)}
-              />
-              <input
-                placeholder={localize(
-                  "Senha atual (obrigatória)",
-                  language,
-                )}
-                type="password"
-                value={currentGroupPasscode}
-                onChange={(event) =>
-                  setCurrentGroupPasscode(event.target.value)
-                }
-              />
-              <input
-                minLength={4}
-                placeholder={localize("Nova senha (opcional)", language)}
-                type="password"
-                value={newGroupPasscode}
-                onChange={(event) => setNewGroupPasscode(event.target.value)}
-              />
-              {groupSettingsError && (
-                <small className="error">
-                  {localize(groupSettingsError, language)}
-                </small>
-              )}
-              <div className="confirm-dialog-actions">
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => setIsGroupEditOpen(false)}
-                >
-                  {localize("Cancelar", language)}
-                </button>
-                <button className="primary">
-                  {localize("Salvar", language)}
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
-      {isGroupDeleteOpen && activeGroup && (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            aria-modal="true"
-            className="confirm-dialog group-auth-modal"
-            role="dialog"
-          >
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (groupDeletePasscode !== activeGroup.organizerPasscode) {
-                  setGroupDeleteError("Senha atual incorreta.");
-                  return;
-                }
-                setGroups((currentGroups) =>
-                  currentGroups.filter((group) => group.id !== activeGroup.id),
-                );
-                setCurrentUser((user) =>
-                  user
-                    ? {
-                        ...user,
-                        adminGroupIds: (user.adminGroupIds ?? []).filter(
-                          (id) => id !== activeGroup.id,
-                        ),
-                      }
-                    : user,
-                );
-                setActiveGroupId(null);
-                setIsGroupDeleteOpen(false);
-                setAccess("groups");
-              }}
-            >
-              <p className="form-mode">{localize("EXCLUIR GRUPO", language)}</p>
-              <p>{localize("Esta ação não pode ser desfeita.", language)}</p>
-              <label className="profile-field">
-                {localize("Senha atual", language)}
-                <input
-                  autoFocus
-                  required
-                  type="password"
-                  value={groupDeletePasscode}
-                  onChange={(event) => {
-                    setGroupDeletePasscode(event.target.value);
-                    setGroupDeleteError("");
-                  }}
-                />
-              </label>
-              {groupDeleteError && (
-                <small className="error">
-                  {localize(groupDeleteError, language)}
-                </small>
-              )}
-              <div className="confirm-dialog-actions">
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => setIsGroupDeleteOpen(false)}
-                >
-                  {localize("Cancelar", language)}
-                </button>
-                <button className="session-action-button delete">
-                  {localize("Deletar", language)}
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
-      {isGroupLeaveOpen && activeGroup && (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            aria-modal="true"
-            className="confirm-dialog group-auth-modal"
-            role="dialog"
-          >
-            <p className="form-mode">{localize("SAIR DO GRUPO", language)}</p>
-            <p>
-              {localize("Você deixará de ver os jogos deste grupo.", language)}
-            </p>
-            <div className="confirm-dialog-actions">
-              <button
-                className="secondary"
-                onClick={() => setIsGroupLeaveOpen(false)}
-              >
-                {localize("Cancelar", language)}
-              </button>
-              <button
-                className="session-action-button delete"
-                onClick={() => {
-                  leaveGroup(activeGroup);
-                  setActiveGroupId(null);
-                  setIsGroupLeaveOpen(false);
-                  setAccess("groups");
-                }}
-              >
-                {localize("Sair do grupo", language)}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
       {gameToDelete && (
         <ConfirmDialog
           kind="delete-game"
@@ -3008,7 +2930,7 @@ export function PlayUpApp() {
           }}
         />
       )}
-      {inviteKind && (
+      {isGameInviteOpen && game && activeGroup && (
         <div className="modal-backdrop" role="presentation">
           <section
             aria-modal="true"
@@ -3016,33 +2938,15 @@ export function PlayUpApp() {
             role="dialog"
           >
             <p className="form-mode">
-              {localize(
-                inviteKind === "group-admin"
-                  ? "CONVITE DE ADMIN"
-                  : inviteKind === "group-participant"
-                    ? "CONVITE PARA O GRUPO"
-                    : "CONVITE PARA O JOGO",
-                language,
-              )}
+              {localize("CONVITE PARA O JOGO", language)}
             </p>
             <p>
               {localize(
-                inviteKind === "group-admin"
-                  ? "Este convite pede a senha do grupo antes de liberar o acesso de admin."
-                  : inviteKind === "group-participant"
-                    ? "Este convite libera a visualização dos jogos ativos do grupo."
-                    : "Este convite libera apenas este jogo para o convidado.",
+                "Este convite libera apenas este jogo para o convidado.",
                 language,
               )}
             </p>
-            <input
-              readOnly
-              value={
-                inviteKind === "game" && game && activeGroup
-                  ? gameInviteCode(activeGroup, game)
-                  : `PLAYUP-GROUP-${activeGroup?.id ?? "DEMO"}`
-              }
-            />
+            <input readOnly value={gameInviteCode(activeGroup, game)} />
             <small className="success">
               {localize(
                 inviteCodeCopied
@@ -3056,7 +2960,7 @@ export function PlayUpApp() {
                 className="session-action-button delete"
                 onClick={() => {
                   setInviteCodeCopied(false);
-                  setInviteKind(null);
+                  setIsGameInviteOpen(false);
                 }}
               >
                 {localize("Fechar", language)}
@@ -3064,12 +2968,10 @@ export function PlayUpApp() {
               <button
                 className="primary"
                 onClick={async () => {
-                  const code =
-                    inviteKind === "game" && game && activeGroup
-                      ? gameInviteCode(activeGroup, game)
-                      : `PLAYUP-GROUP-${activeGroup?.id ?? "DEMO"}`;
                   try {
-                    await navigator.clipboard.writeText(code);
+                    await navigator.clipboard.writeText(
+                      gameInviteCode(activeGroup, game),
+                    );
                     setInviteCodeCopied(true);
                   } catch {
                     setInviteCodeCopied(false);
@@ -3120,7 +3022,8 @@ function PlayerView({
   user: CurrentUser | null;
   isGroupMember: boolean;
   onManageGroup?: () => void;
-  onLeaveGroup?: () => void;
+  /** Returns false when leaving is not allowed (an owner without a successor). */
+  onLeaveGroup?: () => boolean;
   canCreateGame: boolean;
   onCreateGame: (draft: typeof emptyGame) => string | null;
   onProfile: () => void;
@@ -3137,11 +3040,11 @@ function PlayerView({
   >(null);
   const [isGroupLeaveConfirmationOpen, setIsGroupLeaveConfirmationOpen] =
     useState(false);
+  const [groupLeaveError, setGroupLeaveError] = useState("");
   const [isGameListOpen, setIsGameListOpen] = useState(Boolean(game));
   const [isGameCreationOpen, setIsGameCreationOpen] = useState(false);
   const [gameDraft, setGameDraft] = useState(emptyGame);
   const [gameCreationError, setGameCreationError] = useState("");
-  const sortedPlayerIds = (playerIds: number[]) => playerIds;
   const closeGame = () => {
     setActiveAction(null);
     setIsGameListOpen(false);
@@ -3173,7 +3076,7 @@ function PlayerView({
           <strong>{localize("Aviso", language)}:</strong> {game.disclaimer}
         </p>
       )}
-      <div className={`participant-grid ${game.teams ? "" : "without-teams"}`}>
+      <div className={`participant-grid ${hasCurrentTeamRoster(game) ? "" : "without-teams"}`}>
         <section className="panel readonly-list">
           {game.playerIds.length === 0 ? (
             <p className="empty readonly-empty">
@@ -3186,7 +3089,7 @@ function PlayerView({
                 {game.maxPlayers} ({paidPlayersCount}{" "}
                 {localize("pagos", language)})
               </h2>
-              {sortedPlayerIds(game.playerIds).map((x, index) => (
+              {game.playerIds.map((x, index) => (
                 <div
                   className={`readonly-row ${game.paidPlayerIds.includes(x) ? "is-paid" : ""}`}
                   key={x}
@@ -3244,7 +3147,7 @@ function PlayerView({
                 <p className="waiting-list-label">
                   {localize("LISTA DE ESPERA", language)}
                 </p>
-                {sortedPlayerIds(game.waitlistIds).map((x, index) => (
+                {game.waitlistIds.map((x, index) => (
                   <div className="wait-row" key={x}>
                     <span className="readonly-player-name">
                       {game.playerIds.length + index + 1} -{" "}
@@ -3275,7 +3178,7 @@ function PlayerView({
             </>
           )}
         </section>
-        {game.teams && (
+        {hasCurrentTeamRoster(game) && game.teams && (
           <section className="participant-teams">
             <Teams teams={game.teams} language={language} />
           </section>
@@ -3326,7 +3229,10 @@ function PlayerView({
               {onLeaveGroup && (
                 <button
                   className="session-action-button delete participant-leave-group-button"
-                  onClick={() => setIsGroupLeaveConfirmationOpen(true)}
+                  onClick={() => {
+                    setGroupLeaveError("");
+                    setIsGroupLeaveConfirmationOpen(true);
+                  }}
                 >
                   {localize("Sair do grupo", language)}
                 </button>
@@ -3529,6 +3435,11 @@ function PlayerView({
           >
             <p className="form-mode">{localize("SAIR DO GRUPO", language)}</p>
             <p>{localize("Você deseja sair deste grupo?", language)}</p>
+            {groupLeaveError && (
+              <small className="error">
+                {localize(groupLeaveError, language)}
+              </small>
+            )}
             <div className="confirm-dialog-actions">
               <button
                 className="secondary"
@@ -3538,7 +3449,13 @@ function PlayerView({
               </button>
               <button
                 className="session-action-button delete"
-                onClick={() => onLeaveGroup?.()}
+                onClick={() => {
+                  if (onLeaveGroup?.() === false) {
+                    setGroupLeaveError(
+                      "O criador só pode sair quando houver outro membro para assumir o grupo.",
+                    );
+                  }
+                }}
               >
                 {localize("Sair do grupo", language)}
               </button>

@@ -222,6 +222,8 @@ create table games (
   location text not null,
   court_number text null,
   starts_at timestamptz not null,
+  balance_window_starts_at timestamptz not null,
+  balance_window_ends_at timestamptz not null,
   duration_minutes integer not null check (duration_minutes > 0),
   court_cost numeric(12,2) not null default 0 check (court_cost >= 0),
   currency char(3) not null default 'EUR',
@@ -235,12 +237,26 @@ create table games (
   created_by_role game_creator_role not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  check (min_players is null or min_players <= max_players)
+  check (min_players is null or min_players <= max_players),
+  check (balance_window_starts_at < balance_window_ends_at)
 );
 
 create index games_group_active_idx
   on games(group_id, starts_at) where status = 'active';
 create index games_join_code_prefix_idx on games(join_code_prefix);
+
+create table game_schedule_changes (
+  id uuid primary key default gen_random_uuid(),
+  game_id uuid not null references games(id) on delete cascade,
+  previous_starts_at timestamptz not null,
+  current_starts_at timestamptz not null,
+  changed_by_user_id uuid not null references users(id),
+  changed_at timestamptz not null default now(),
+  check (previous_starts_at <> current_starts_at)
+);
+
+create index game_schedule_changes_game_idx
+  on game_schedule_changes(game_id, changed_at desc);
 
 create table user_game_accesses (
   id uuid primary key default gen_random_uuid(),
@@ -260,7 +276,7 @@ create index user_game_accesses_user_idx
 
 This table powers My next games for people who are not group members. Group members derive access from active membership. A verified game invite/code creates or reuses a game-only profile, immediately adds that profile to the main list or waiting list, and never adds it to the group directory.
 
-`created_by_role` is captured from the creator's active group membership when the game is created. It is not a global user role. An active group admin can manage all group games. An active participant can create a game and is the organizer only of a game where `created_by_user_id` is their user id and `created_by_role = 'participant'`; they do not acquire group-admin powers.
+`created_by_role` is captured from the creator's active group membership when the game is created. It is not a global user role. An active group admin can manage all group games. An active participant can create a game and is the organizer only of a game where `created_by_user_id` is their user id and `created_by_role = 'participant'`; they do not acquire group-admin powers. A schedule edit must update `games.starts_at` and both balance-window columns while inserting one `game_schedule_changes` row in the same transaction. This preserves who moved the game and whether the latest start is earlier.
 
 ### Game list, waiting list, and payments
 
@@ -316,6 +332,7 @@ create table game_team_balances (
   game_id uuid not null references games(id) on delete cascade,
   trigger_type team_balance_trigger not null,
   triggered_by_user_id uuid null references users(id),
+  window_opened_by_schedule_change_id uuid null references game_schedule_changes(id),
   standard_balance_number smallint null check (standard_balance_number between 1 and 2),
   algorithm_version text not null,
   team_a_score numeric(8,2) not null,
@@ -326,6 +343,10 @@ create table game_team_balances (
     (trigger_type = 'organizer' and triggered_by_user_id is not null and standard_balance_number is not null)
     or (trigger_type = 'automatic' and triggered_by_user_id is null and standard_balance_number is not null)
     or (trigger_type = 'late_rebalance' and triggered_by_user_id is not null and standard_balance_number is null)
+  ),
+  check (
+    window_opened_by_schedule_change_id is null
+    or trigger_type = 'late_rebalance'
   )
 );
 
@@ -345,7 +366,7 @@ create table game_team_balance_members (
 
 Only paid confirmed participants are eligible for teams; unpaid and waiting-list entries are always excluded. Manual balancing is available from two paid confirmed participants. When the main list reaches `max_players` and every confirmed participant is paid, generate the next available standard balance automatically.
 
-The standard quota is determined by `games.created_by_role`: two standard balances for an admin-created game and one for a participant-created game. Automatic and organizer-triggered balances share that quota. Persist the count even if a roster or payment change invalidates a snapshot. Once the standard quota is exhausted, allow exactly one `late_rebalance` only during the 15 minutes before `starts_at`; it does not increment the standard count. The button must be disabled outside that window and after the late rebalance has been used.
+The standard quota is determined by `games.created_by_role`: two standard balances for an admin-created game and one for a participant-created game. Automatic and organizer-triggered balances share that quota. Persist the count even if a roster or payment change invalidates a snapshot. A replacement is a real roster change and creates the next automatic snapshot when quota remains. Compare confirmed-player IDs as an unordered set: reordering an identical set must neither create a snapshot nor consume quota. On creation, persist `balance_window_starts_at = starts_at - interval '15 minutes'` and `balance_window_ends_at = starts_at`; update both columns atomically when the scheduled date/time is rescheduled. This moves the final window but never resets the standard count or changes existing balance records. Once the standard quota is exhausted, allow exactly one `late_rebalance` record only within the current window; it does not increment the standard count. If the active window came from an earlier start, expose the responsible admin in the availability notice and persist that schedule-change ID in `window_opened_by_schedule_change_id` when the final rebalance is used. The button must be disabled outside that window and after a `late_rebalance` record exists for the game.
 
 Record the triggering user for an organizer-triggered or late rebalance. For admin-created games, expose the latest trigger and standard count to administrators. For participant-created games, the API must not expose admin/player-skill information to the participant organizer. A new snapshot supersedes the active one and must prefer a different comparably fair player split when one exists; merely swapping Team A and Team B is not a new balance.
 
@@ -411,7 +432,7 @@ Every active group admin receives their own recipient row. Dismissing a message 
 11. A participant may update only their own payment state, except while acting as organizer of their own game under rule 4.
 12. Names are unique, ignoring case and repeated spaces, inside each group and active game list.
 13. Changing a group passcode requires the current passcode and does not invalidate existing memberships.
-14. Balancing includes only paid confirmed main-list participants. Standard quota: two balances for an admin-created game, one for a participant-created game; automatic and manual balances share it. One final manual rebalance is available only in the last 15 minutes before the game. Roster/payment changes do not reset either quota.
+14. Balancing includes only paid confirmed main-list participants. Standard quota: two balances for an admin-created game, one for a participant-created game; automatic and manual balances share it. One final manual rebalance is available only in the 15-minute window before the current scheduled start. A date/time reschedule moves that window atomically, but roster/payment/date/time changes never reset a quota or create an additional final rebalance.
 15. Finished games are immutable to both admins and participants except for deletion by the authorized owner. Their API representation is read-only and may include the latest valid team-balance snapshot.
 16. Admin skill votes are incremental: each vote recalculates the current level/mobility average; no unanimous or complete quorum is required. A player never votes on or sees their own level/mobility in game-management lists.
 
@@ -516,6 +537,6 @@ Este documento fica em inglês como referência principal de implementação. Re
 - A pessoa pode sair apenas da própria entrada; admin remove outras pessoas pelo gerenciamento.
 - Nomes não podem repetir dentro de um grupo nem de uma lista ativa de jogo.
 - Um participante do grupo pode criar e organizar somente o próprio jogo, sem se tornar admin do grupo. Admin gerencia todos os jogos; organizador participante administra apenas lista, pagamentos, criação de jogadores e times do seu jogo. Atributos técnicos e estatísticas do grupo permanecem ocultos para ele.
-- O balanceamento manual exige pelo menos dois jogadores pagos da lista principal; com lista cheia e todos pagos, os times são gerados automaticamente. Jogadores não pagos e da lista de espera não entram no cálculo. Jogos criados por admin permitem duas gerações regulares; jogos criados por participante permitem uma. Automático e manual compartilham esse limite. Depois há somente um rebalanceamento manual final nos últimos 15 minutos antes do jogo. Alterar lista/pagamento não reinicia os limites. Novo balanceamento deve mudar a composição quando existir alternativa justa, e não apenas trocar os times de lado.
+- O balanceamento manual exige pelo menos dois jogadores pagos da lista principal; com lista cheia e todos pagos, os times são gerados automaticamente. Jogadores não pagos e da lista de espera não entram no cálculo. Jogos criados por admin permitem duas gerações regulares; jogos criados por participante permitem uma. Automático e manual compartilham esse limite. Depois há somente um rebalanceamento manual final na janela de 15 minutos antes do horário vigente do jogo. Remarcar data ou horário desloca essa janela, mas nunca reinicia a cota nem concede outro rebalanceamento final. A remarcação registra horário anterior, novo horário e admin responsável; quando ela antecipa o início, o aviso e o histórico do rebalanceamento final mostram essa autoria. Novo balanceamento deve mudar a composição quando existir alternativa justa, e não apenas trocar os times de lado.
 - Jogos finalizados são somente leitura para admins e participantes; a API pode exibir o último snapshot válido dos times.
 - O protótipo usa códigos locais previsíveis apenas para teste; o backend deverá usar tokens aleatórios hasheados.

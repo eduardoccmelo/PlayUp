@@ -28,7 +28,8 @@ const localIsoDate = (date: Date) => {
   return localDate.toISOString().slice(0, 10);
 };
 
-export const today = localIsoDate(new Date());
+/** Today's date in local time. Evaluated on each call so long-lived tabs stay correct past midnight. */
+export const today = () => localIsoDate(new Date());
 
 export function normalizeText(value: string) {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
