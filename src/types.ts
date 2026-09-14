@@ -62,9 +62,18 @@ export type BalanceHistoryEntry = {
   triggeredAt: string;
   type: "automatic" | "admin" | "late-rebalance";
   adminName?: string;
+  /** Context retained if the final rebalance was made available by an earlier start. */
+  rescheduledByName?: string;
   count?: number;
 };
-export type GameSession = { id: number; date: string; time: string; endTime: string; duration: number; location: string; courtNumber: string; courtCost: number; currency: "EUR" | "USD" | "GBP" | "BRL"; maxPlayers: number; minPlayers: number | null; cancellationHours: number | null; cancelled: boolean; paymentInfo: string; disclaimer: string; playerIds: number[]; waitlistIds: number[]; paidPlayerIds: number[]; teams: BalancedTeams | null; createdByUserId?: string; createdByRole?: "admin" | "participant"; balanceCount?: number; balanceHistory?: BalanceHistoryEntry[]; manualRebalanceCount?: number; lateRebalanceUsed?: boolean; };
+export type ScheduleChange = {
+  previousStartsAt: string;
+  currentStartsAt: string;
+  changedAt: string;
+  changedByName: string;
+  wasBroughtForward: boolean;
+};
+export type GameSession = { id: number; date: string; time: string; endTime: string; duration: number; location: string; courtNumber: string; courtCost: number; currency: "EUR" | "USD" | "GBP" | "BRL"; maxPlayers: number; minPlayers: number | null; cancellationHours: number | null; cancelled: boolean; paymentInfo: string; disclaimer: string; playerIds: number[]; waitlistIds: number[]; paidPlayerIds: number[]; teams: BalancedTeams | null; createdByUserId?: string; createdByRole?: "admin" | "participant"; balanceCount?: number; balanceHistory?: BalanceHistoryEntry[]; manualRebalanceCount?: number; lateRebalanceUsed?: boolean; /** Current final-rebalance window, recalculated only when the game is rescheduled. */ balanceWindowStartAt?: string; balanceWindowEndAt?: string; lastScheduleChange?: ScheduleChange; };
 export type PlayerGroup = {
   id: string;
   name: string;

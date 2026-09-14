@@ -101,8 +101,12 @@ export function LandingPage({
     setEmail(nextProfile?.email ?? user?.email ?? "");
   };
   const issueAccessCode = () => {
+    const issuedAt = Date.now();
     setIssuedAccessCode(createVerificationCode());
-    setAccessCodeExpiresAt(Date.now() + 5 * 60 * 1000);
+    setAccessCodeExpiresAt(issuedAt + 5 * 60 * 1000);
+    // A profile dialog can stay open for a while before the code is requested.
+    // Reset the displayed clock immediately instead of waiting for the interval.
+    setNow(issuedAt);
   };
   const remainingCodeSeconds = Math.max(
     0,

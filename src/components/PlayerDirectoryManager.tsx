@@ -144,9 +144,14 @@ export function PlayerDirectoryManager({
             role="dialog"
           >
             <p className="form-mode">
-              {localize(
-                mode === "edit" ? "Editar jogador" : "Adicionar novo jogador",
-                language,
+              {mode === "edit" ? (
+                <>
+                  {localize("Editar jogador", language)}
+                  {editingPlayer?.isGuest &&
+                    ` (${language === "pt" ? "Convidado" : "Guest"})`}
+                </>
+              ) : (
+                localize("Adicionar novo jogador", language)
               )}
             </p>
             {formError && (

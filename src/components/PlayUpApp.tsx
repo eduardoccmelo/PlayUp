@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { getStoredValue } from "../services/browserStorage";
+import { getStoredValue, saveStoredValue } from "../services/browserStorage";
 import {
   generateBalancedTeams,
   playerScoreBreakdown,
@@ -79,12 +79,52 @@ const MAX_STANDARD_BALANCES = 2;
 const FINAL_REBALANCE_WINDOW = 15 * 60 * 1000;
 const standardBalanceLimit = (game: GameSession) =>
   game.createdByRole === "participant" ? 1 : MAX_STANDARD_BALANCES;
+const lockedBalanceWindow = (game: GameSession) => {
+  const scheduledAt = gameTimestamp(game);
+  const startAt = Date.parse(game.balanceWindowStartAt ?? "");
+  const endAt = Date.parse(game.balanceWindowEndAt ?? "");
+  return {
+    start: Number.isFinite(startAt) ? startAt : scheduledAt - FINAL_REBALANCE_WINDOW,
+    end: Number.isFinite(endAt) ? endAt : scheduledAt,
+  };
+};
+const lockBalanceWindow = (game: GameSession): GameSession => {
+  if (game.balanceWindowStartAt && game.balanceWindowEndAt) return game;
+  const { start, end } = lockedBalanceWindow(game);
+  return {
+    ...game,
+    balanceWindowStartAt: new Date(start).toISOString(),
+    balanceWindowEndAt: new Date(end).toISOString(),
+  };
+};
+/** A reschedule changes when the single final balance may be used, never its quota. */
+const reanchorBalanceWindow = (game: GameSession): GameSession => {
+  const scheduledAt = gameTimestamp(game);
+  return {
+    ...game,
+    balanceWindowStartAt: new Date(
+      scheduledAt - FINAL_REBALANCE_WINDOW,
+    ).toISOString(),
+    balanceWindowEndAt: new Date(scheduledAt).toISOString(),
+  };
+};
 const isFinalRebalanceWindow = (game: GameSession, now: number) => {
-  const start = gameTimestamp(game);
-  return now >= start - FINAL_REBALANCE_WINDOW && now < start;
+  const { start, end } = lockedBalanceWindow(game);
+  return now >= start && now < end;
 };
 const balanceCountOf = (game: GameSession) =>
   game.balanceCount ?? game.manualRebalanceCount ?? 0;
+const hasCurrentTeamRoster = (game: GameSession) => {
+  if (!game.teams) return false;
+  const assignedIds = [...game.teams.teamA, ...game.teams.teamB].map(
+    (player) => player.id,
+  );
+  return (
+    assignedIds.length === game.playerIds.length &&
+    new Set(assignedIds).size === assignedIds.length &&
+    assignedIds.every((playerId) => game.playerIds.includes(playerId))
+  );
+};
 const appendBalanceHistory = (game: GameSession, entry: BalanceHistoryEntry) =>
   [...(game.balanceHistory ?? []), entry].slice(-4);
 const resetPageScroll = () => {
@@ -116,9 +156,10 @@ const nextIdentifier = (
     id: number;
   }[],
 ) => Math.max(0, ...records.map((record) => record.id)) + 1;
-const samePlayerIds = (first: number[], second: number[]) =>
+/** A player order change is not a roster change and must not spend a balance. */
+const samePlayerSet = (first: number[], second: number[]) =>
   first.length === second.length &&
-  first.every((id, index) => id === second[index]);
+  first.every((id) => second.includes(id));
 const paidPlayersFirst = (playerIds: number[], paidPlayerIds: number[]) => [
   ...playerIds.filter((playerId) => paidPlayerIds.includes(playerId)),
   ...playerIds.filter((playerId) => !paidPlayerIds.includes(playerId)),
@@ -223,7 +264,24 @@ export function PlayUpApp() {
     [updateActiveGroup],
   );
   useEffect(() => {
-    if (groups.length || localStorage.getItem("playup.groups.v1.migrated"))
+    let changed = false;
+    const nextGroups = groups.map((group) => {
+      const nextGames = group.games.map((gameSession) => {
+        const lockedGame = lockBalanceWindow(gameSession);
+        changed ||= lockedGame !== gameSession;
+        return lockedGame;
+      });
+      return nextGames === group.games || nextGames.every((gameSession, index) => gameSession === group.games[index])
+        ? group
+        : { ...group, games: nextGames };
+    });
+    if (changed) setGroups(nextGroups);
+  }, [groups, setGroups]);
+  useEffect(() => {
+    if (
+      groups.length ||
+      getStoredValue<boolean>("playup.groups.v1.migrated", false)
+    )
       return;
 
     const legacyPlayers = getStoredValue<Player[]>("playup.players.v3", []);
@@ -232,7 +290,7 @@ export function PlayUpApp() {
       "playup.requests.v3",
       [],
     );
-    localStorage.setItem("playup.groups.v1.migrated", "true");
+    saveStoredValue("playup.groups.v1.migrated", true);
     if (!legacyPlayers.length && !legacyGames.length && !legacyRequests.length)
       return;
 
@@ -505,6 +563,7 @@ export function PlayUpApp() {
   const currentBalanceLimit = game
     ? standardBalanceLimit(game)
     : MAX_STANDARD_BALANCES;
+  const hasCurrentTeams = Boolean(game && hasCurrentTeamRoster(game));
   const isFinalBalanceAvailable =
     Boolean(game) &&
     isFinalRebalanceWindow(game!, clock) &&
@@ -528,7 +587,8 @@ export function PlayUpApp() {
         )
         .sort(currentUserFirst)
     : [];
-  const saveGames = (next: GameSession[]) => setGames(next);
+  const saveGames = (next: GameSession[]) =>
+    setGames(next.map(lockBalanceWindow));
   const refreshTeams = useCallback(
     (gameSession: GameSession, allPlayers = noPlayers): GameSession => {
       const listedPlayers = gameSession.playerIds
@@ -617,12 +677,14 @@ export function PlayUpApp() {
     const previousGame = games.find(
       (storedGame) => storedGame.id === gameSession.id,
     );
-    const rosterOrPaymentChanged =
+    const rosterChanged =
       previousGame !== undefined &&
-      (!samePlayerIds(previousGame.playerIds, gameSession.playerIds) ||
-        !samePlayerIds(previousGame.paidPlayerIds, gameSession.paidPlayerIds));
+      !samePlayerSet(previousGame.playerIds, gameSession.playerIds);
+    const paymentChanged =
+      previousGame !== undefined &&
+      !samePlayerSet(previousGame.paidPlayerIds, gameSession.paidPlayerIds);
     const refreshedGame =
-      shouldRefreshTeams && rosterOrPaymentChanged
+      shouldRefreshTeams && (rosterChanged || paymentChanged)
         ? refreshTeams(gameSession, players)
         : gameSession;
     if (refreshedGame.teams) setBalanceNotice("");
@@ -701,27 +763,47 @@ export function PlayUpApp() {
       const old = games.find((g) => g.id === editGame)!;
       const active = old.playerIds.slice(0, gameForm.maxPlayers);
       const overflow = old.playerIds.slice(gameForm.maxPlayers);
-      const updatedGame = refreshTeams(
-        {
-          ...old,
-          ...gameForm,
-          endTime,
-          duration: gameForm.duration,
-          courtCost: +gameForm.courtCost,
-          maxPlayers: +gameForm.maxPlayers,
-          playerIds: active,
-          waitlistIds: [...overflow, ...old.waitlistIds],
-          paidPlayerIds: old.paidPlayerIds.filter((x) => active.includes(x)),
-        },
-        players,
+      const nextGame = {
+        ...old,
+        ...gameForm,
+        endTime,
+        duration: gameForm.duration,
+        courtCost: +gameForm.courtCost,
+        maxPlayers: +gameForm.maxPlayers,
+        playerIds: active,
+        waitlistIds: [...overflow, ...old.waitlistIds],
+        paidPlayerIds: old.paidPlayerIds.filter((x) => active.includes(x)),
+      };
+      const scheduleChanged =
+        nextGame.date !== old.date || nextGame.time !== old.time;
+      const rescheduledGame = scheduleChanged
+        ? {
+            ...reanchorBalanceWindow(nextGame),
+            lastScheduleChange: {
+              previousStartsAt: new Date(gameTimestamp(old)).toISOString(),
+              currentStartsAt: new Date(gameTimestamp(nextGame)).toISOString(),
+              changedAt: new Date().toISOString(),
+              changedByName:
+                currentUser?.displayName ?? localize("Administrador", language),
+              wasBroughtForward:
+                gameTimestamp(nextGame) < gameTimestamp(old),
+            },
+          }
+        : nextGame;
+      const rosterChanged = !samePlayerSet(
+        rescheduledGame.playerIds,
+        old.playerIds,
       );
-      // Teams were already refreshed above; a second refresh inside updateGame
-      // would consume an extra automatic balance.
+      // Editing logistics, payment status, capacity without a roster change,
+      // or player ordering must never spend a balance.
+      const updatedGame = rosterChanged
+        ? refreshTeams(rescheduledGame, players)
+        : rescheduledGame;
       updateGame(updatedGame, false);
       setGameId(keepGameOpenAfterEdit ? old.id : null);
       setKeepGameOpenAfterEdit(false);
     } else {
-      const g: GameSession = {
+      const g = lockBalanceWindow({
         id: nextIdentifier(games),
         ...gameForm,
         endTime,
@@ -737,7 +819,7 @@ export function PlayUpApp() {
         minPlayers: null,
         cancellationHours: 2,
         cancelled: false,
-      };
+      });
       saveGames([...games, g]);
       setGameId(g.id);
     }
@@ -843,7 +925,7 @@ export function PlayUpApp() {
             : g;
         const filledGame = fillOpenSpots(updated);
         return editedPlayerIsPlaying ||
-          !samePlayerIds(updated.playerIds, filledGame.playerIds)
+          !samePlayerSet(updated.playerIds, filledGame.playerIds)
           ? refreshTeams(filledGame, next)
           : filledGame;
       }),
@@ -883,7 +965,9 @@ export function PlayUpApp() {
           waitlistIds: g.waitlistIds.filter((x) => x !== pid),
           paidPlayerIds: g.paidPlayerIds.filter((x) => x !== pid),
         });
-        return playerWasPlaying ? refreshTeams(filledGame, next) : filledGame;
+        return playerWasPlaying
+          ? refreshTeams(filledGame, next)
+          : filledGame;
       }),
     );
     setEntered(false);
@@ -963,21 +1047,19 @@ export function PlayUpApp() {
           ...group,
           games: group.games.map((gameSession) => {
             if (gameSession.id !== selectedGame.id) return gameSession;
-            return refreshTeams(
-              fillOpenSpots({
-                ...gameSession,
-                playerIds: gameSession.playerIds.filter(
-                  (id) => id !== player.id,
-                ),
-                waitlistIds: gameSession.waitlistIds.filter(
-                  (id) => id !== player.id,
-                ),
-                paidPlayerIds: gameSession.paidPlayerIds.filter(
-                  (id) => id !== player.id,
-                ),
-              }),
-              group.players,
-            );
+            const updatedGame = fillOpenSpots({
+              ...gameSession,
+              playerIds: gameSession.playerIds.filter(
+                (id) => id !== player.id,
+              ),
+              waitlistIds: gameSession.waitlistIds.filter(
+                (id) => id !== player.id,
+              ),
+              paidPlayerIds: gameSession.paidPlayerIds.filter(
+                (id) => id !== player.id,
+              ),
+            });
+            return refreshTeams(updatedGame, group.players);
           }),
         };
       }),
@@ -1559,7 +1641,7 @@ export function PlayUpApp() {
             return "Não é possível criar um jogo em uma data passada.";
           const endTime = endTimeFromDuration(draft.time, draft.duration);
           if (!endTime) return "A duração precisa terminar no mesmo dia.";
-          const newGame: GameSession = {
+          const newGame = lockBalanceWindow({
             id: nextIdentifier(games),
             ...draft,
             endTime,
@@ -1575,7 +1657,7 @@ export function PlayUpApp() {
             teams: null,
             createdByUserId: currentUser?.id,
             createdByRole: "participant",
-          };
+          });
           setGames([...games, newGame]);
           setGameId(newGame.id);
           setAccess("participant-manage");
@@ -2093,7 +2175,7 @@ export function PlayUpApp() {
       {!game && (
         <PlayerDirectoryManager
           language={language}
-          players={players.filter((player) => player.accessScope !== "game")}
+          players={players}
           currentUser={currentUser}
           onAddPlayer={(player) => {
             if (
@@ -2573,8 +2655,8 @@ export function PlayUpApp() {
                     {latestBalance
                       ? latestBalance.type === "late-rebalance"
                         ? language === "pt"
-                          ? `Rebalanceamento final disparado por ${latestBalance.adminName ?? localize("Administrador", language)}.`
-                          : `Final rebalance triggered by ${latestBalance.adminName ?? localize("Administrator", language)}.`
+                          ? `Rebalanceamento final disparado por ${latestBalance.adminName ?? localize("Administrador", language)}.${latestBalance.rescheduledByName ? ` Disponibilizado antecipadamente porque o jogo foi antecipado por ${latestBalance.rescheduledByName}.` : ""}`
+                          : `Final rebalance triggered by ${latestBalance.adminName ?? localize("Administrator", language)}.${latestBalance.rescheduledByName ? ` Made available early because ${latestBalance.rescheduledByName} moved the game earlier.` : ""}`
                         : latestBalance.type === "admin"
                           ? language === "pt"
                             ? `Balanceamento disparado por ${latestBalance.adminName}. Balanceamento: ${latestBalance.count} de ${currentBalanceLimit}.`
@@ -2603,10 +2685,14 @@ export function PlayUpApp() {
                   )}
                 {isFinalBalanceAvailable && (
                   <p className="balance-availability">
-                    {localize(
-                      "Rebalanceamento final disponível: somente 1 tentativa até o início do jogo.",
-                      language,
-                    )}
+                    {game.lastScheduleChange?.wasBroughtForward
+                      ? language === "pt"
+                        ? `Rebalanceamento final disponibilizado antecipadamente: o jogo foi antecipado por ${game.lastScheduleChange.changedByName}.`
+                        : `Final rebalance made available early: ${game.lastScheduleChange.changedByName} moved the game earlier.`
+                      : localize(
+                          "Rebalanceamento final disponível: somente 1 tentativa até o início do jogo.",
+                          language,
+                        )}
                   </p>
                 )}
                 {game.lateRebalanceUsed && (
@@ -2649,6 +2735,11 @@ export function PlayUpApp() {
                           adminName:
                             currentUser?.displayName ??
                             localize("Administrador", language),
+                          rescheduledByName:
+                            isLateRebalance &&
+                            game.lastScheduleChange?.wasBroughtForward
+                              ? game.lastScheduleChange.changedByName
+                              : undefined,
                           count: isLateRebalance ? undefined : nextBalanceCount,
                         }),
                         lateRebalanceUsed:
@@ -2659,14 +2750,14 @@ export function PlayUpApp() {
                   }}
                 >
                   {localize(
-                    game.teams ? "Balancear novamente" : "Gerar times",
+                    hasCurrentTeams ? "Balancear novamente" : "Gerar times",
                     language,
                   )}
                 </button>
                 {balanceNotice && (
                   <p className="generate-notice">{balanceNotice}</p>
                 )}
-                {game.teams && (
+                {hasCurrentTeams && game.teams && (
                   <Teams
                     embedded
                     teams={game.teams}
@@ -2687,11 +2778,14 @@ export function PlayUpApp() {
             role="dialog"
           >
             <p className="form-mode">
-              {localize(
-                editPlayer !== null
-                  ? "Editar jogador"
-                  : "Adicionar novo jogador",
-                language,
+              {editPlayer !== null ? (
+                <>
+                  {localize("Editar jogador", language)}
+                  {players.find((player) => player.id === editPlayer)?.isGuest &&
+                    ` (${language === "pt" ? "Convidado" : "Guest"})`}
+                </>
+              ) : (
+                localize("Adicionar novo jogador", language)
               )}
             </p>
             {playerFormError && (
@@ -2982,7 +3076,7 @@ function PlayerView({
           <strong>{localize("Aviso", language)}:</strong> {game.disclaimer}
         </p>
       )}
-      <div className={`participant-grid ${game.teams ? "" : "without-teams"}`}>
+      <div className={`participant-grid ${hasCurrentTeamRoster(game) ? "" : "without-teams"}`}>
         <section className="panel readonly-list">
           {game.playerIds.length === 0 ? (
             <p className="empty readonly-empty">
@@ -3084,7 +3178,7 @@ function PlayerView({
             </>
           )}
         </section>
-        {game.teams && (
+        {hasCurrentTeamRoster(game) && game.teams && (
           <section className="participant-teams">
             <Teams teams={game.teams} language={language} />
           </section>

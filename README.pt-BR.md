@@ -147,7 +147,7 @@ Esses códigos servem somente para testar a interface. Em produção, devem ser 
 
 Somente jogadores pagos na lista principal entram no balanceamento; jogadores não pagos e da lista de espera nunca entram. A geração manual exige pelo menos dois jogadores pagos. Quando a lista principal está completa e todos estão pagos, o PlayUp gera automaticamente o primeiro balanceamento disponível.
 
-O limite é propositalmente pequeno: o balanceamento deve ser a etapa final da preparação, de preferência no dia do jogo. Alterar a lista ou o pagamento invalida os times exibidos, mas não reinicia o limite.
+O limite é propositalmente pequeno: o balanceamento deve ser a etapa final da preparação, de preferência no dia do jogo. Uma mudança real na lista ou no pagamento invalida os times exibidos e pode consumir o próximo balanceamento automático disponível, mas nunca reinicia o limite. Reordenar os mesmos IDs de jogadores não é mudança de lista: não recalcula os times nem consome a cota. Ao remarcar o jogo, a janela final de 15 minutos é recalculada a partir do novo horário, mas a cota normal e o único rebalanceamento final nunca são reiniciados. Quando um admin antecipa o jogo, o aviso de disponibilidade mostra quem fez a alteração; se o rebalanceamento final for usado, essa autoria também fica registrada no histórico.
 
 | Responsável pelo jogo | Balanceamentos regulares (automático/manual combinados) | Janela final |
 | --- | ---: | --- |
