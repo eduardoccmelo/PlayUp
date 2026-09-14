@@ -115,7 +115,7 @@ const isFinalRebalanceWindow = (game: GameSession, now: number) => {
 const balanceCountOf = (game: GameSession) =>
   game.balanceCount ?? game.manualRebalanceCount ?? 0;
 const hasCurrentTeamRoster = (game: GameSession) => {
-  if (!game.teams) return false;
+  if (!game.teams || !isGameReadyForBalancing(game)) return false;
   const assignedIds = [...game.teams.teamA, ...game.teams.teamB].map(
     (player) => player.id,
   );
@@ -156,10 +156,88 @@ const nextIdentifier = (
     id: number;
   }[],
 ) => Math.max(0, ...records.map((record) => record.id)) + 1;
-/** A player order change is not a roster change and must not spend a balance. */
 const samePlayerSet = (first: number[], second: number[]) =>
   first.length === second.length &&
   first.every((id) => second.includes(id));
+const balanceSignatureFor = (player: Player) => {
+  const score = playerScoreBreakdown(player);
+  return [
+    player.position,
+    score.level,
+    score.mobility,
+    score.condition,
+    score.total,
+  ].join(":");
+};
+/**
+ * The player ID is irrelevant to balance quality. A substitute can retain the
+ * existing teams only when every balance input is equivalent: position, level,
+ * mobility and condition. Keeping the individual inputs matters because the
+ * balancer uses mobility and condition as tie breakers even when totals match.
+ */
+const hasEquivalentBalanceRoster = (
+  first: number[],
+  second: number[],
+  allPlayers: Player[],
+) => {
+  if (first.length !== second.length) return false;
+  const signaturesFor = (playerIds: number[]) => {
+    const signatures: string[] = [];
+    for (const playerId of playerIds) {
+      const player = allPlayers.find((candidate) => candidate.id === playerId);
+      if (!player) return null;
+      signatures.push(balanceSignatureFor(player));
+    }
+    return signatures.sort();
+  };
+  const firstSignatures = signaturesFor(first);
+  const secondSignatures = signaturesFor(second);
+  return (
+    firstSignatures !== null &&
+    secondSignatures !== null &&
+    firstSignatures.every(
+      (signature, index) => signature === secondSignatures[index],
+    )
+  );
+};
+const preserveEquivalentTeamAssignments = (
+  game: GameSession,
+  allPlayers: Player[],
+): GameSession => {
+  if (!game.teams) return game;
+  const currentPlayers = new Map(
+    game.playerIds
+      .map((playerId) => allPlayers.find((player) => player.id === playerId))
+      .filter((player): player is Player => Boolean(player))
+      .map((player) => [player.id, player]),
+  );
+  const assignedIds = new Set([
+    ...game.teams.teamA.map((player) => player.id),
+    ...game.teams.teamB.map((player) => player.id),
+  ]);
+  const replacements = [...currentPlayers.values()].filter(
+    (player) => !assignedIds.has(player.id),
+  );
+  const replacePlayer = (player: Player) => {
+    const current = currentPlayers.get(player.id);
+    if (current) return current;
+    const replacementIndex = replacements.findIndex(
+      (candidate) =>
+        balanceSignatureFor(candidate) === balanceSignatureFor(player),
+    );
+    return replacementIndex === -1
+      ? player
+      : replacements.splice(replacementIndex, 1)[0];
+  };
+  const teamA = game.teams.teamA.map(replacePlayer);
+  const teamB = game.teams.teamB.map(replacePlayer);
+  const scoreOf = (team: Player[]) =>
+    team.reduce((total, player) => total + playerScoreBreakdown(player).total, 0);
+  return {
+    ...game,
+    teams: { teamA, teamB, sumA: scoreOf(teamA), sumB: scoreOf(teamB) },
+  };
+};
 const paidPlayersFirst = (playerIds: number[], paidPlayerIds: number[]) => [
   ...playerIds.filter((playerId) => paidPlayerIds.includes(playerId)),
   ...playerIds.filter((playerId) => !paidPlayerIds.includes(playerId)),
@@ -679,13 +757,19 @@ export function PlayUpApp() {
     );
     const rosterChanged =
       previousGame !== undefined &&
-      !samePlayerSet(previousGame.playerIds, gameSession.playerIds);
-    const paymentChanged =
+      !hasEquivalentBalanceRoster(
+        previousGame.playerIds,
+        gameSession.playerIds,
+        players,
+      );
+    const playerIdsChanged =
       previousGame !== undefined &&
-      !samePlayerSet(previousGame.paidPlayerIds, gameSession.paidPlayerIds);
+      !samePlayerSet(previousGame.playerIds, gameSession.playerIds);
     const refreshedGame =
-      shouldRefreshTeams && (rosterChanged || paymentChanged)
-        ? refreshTeams(gameSession, players)
+      shouldRefreshTeams && playerIdsChanged
+        ? rosterChanged
+          ? refreshTeams(gameSession, players)
+          : preserveEquivalentTeamAssignments(gameSession, players)
         : gameSession;
     if (refreshedGame.teams) setBalanceNotice("");
     saveGames(
@@ -790,15 +874,16 @@ export function PlayUpApp() {
             },
           }
         : nextGame;
-      const rosterChanged = !samePlayerSet(
+      const rosterChanged = !hasEquivalentBalanceRoster(
         rescheduledGame.playerIds,
         old.playerIds,
+        players,
       );
       // Editing logistics, payment status, capacity without a roster change,
       // or player ordering must never spend a balance.
       const updatedGame = rosterChanged
         ? refreshTeams(rescheduledGame, players)
-        : rescheduledGame;
+        : preserveEquivalentTeamAssignments(rescheduledGame, players);
       updateGame(updatedGame, false);
       setGameId(keepGameOpenAfterEdit ? old.id : null);
       setKeepGameOpenAfterEdit(false);
@@ -925,9 +1010,13 @@ export function PlayUpApp() {
             : g;
         const filledGame = fillOpenSpots(updated);
         return editedPlayerIsPlaying ||
-          !samePlayerSet(updated.playerIds, filledGame.playerIds)
+          !hasEquivalentBalanceRoster(
+            updated.playerIds,
+            filledGame.playerIds,
+            next,
+          )
           ? refreshTeams(filledGame, next)
-          : filledGame;
+          : preserveEquivalentTeamAssignments(filledGame, next);
       }),
     );
     setPlayerForm(emptyPlayer);
