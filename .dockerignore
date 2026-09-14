@@ -1,7 +1,6 @@
-PlayUp/node_modules
-PlayUp/dist
-PlayUp/.git
-PlayUp/.DS_Store
+node_modules
+dist
+dist-ssr
 .git
-.gitignore
+.DS_Store
 npm-debug.log*

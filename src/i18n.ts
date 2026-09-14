@@ -476,6 +476,13 @@ export const translations: Record<
     boa: "good",
     defesa: "defense",
     goleiro: "goalkeeper",
+    "Nenhum perfil encontrado para este e-mail.":
+      "No profile was found for this email.",
+    "Você só pode sair com o seu próprio nome.":
+      "You can only leave with your own name.",
+    "Informe seu nome.": "Enter your name.",
+    "O criador só pode sair quando houver outro membro para assumir o grupo.":
+      "The owner can only leave when another member can take over the group.",
   },
 };
 export function localize(value: string, language: Language) {

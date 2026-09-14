@@ -33,11 +33,13 @@ export function PlayerDirectoryManager({
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [playerToDelete, setPlayerToDelete] = useState<Player | null>(null);
   const [message, setMessage] = useState("");
+  const [formError, setFormError] = useState("");
 
   const closeModal = () => {
     setMode(null);
     setEditingPlayer(null);
     setDraft(emptyPlayer);
+    setFormError("");
   };
   const savePlayer = (event: FormEvent) => {
     event.preventDefault();
@@ -45,7 +47,11 @@ export function PlayerDirectoryManager({
     const saved = editingPlayer
       ? onUpdatePlayer({ ...editingPlayer, ...draft, name })
       : onAddPlayer({ ...draft, name });
-    if (!saved) return;
+    if (!saved) {
+      // The only rejection reason today is a duplicate name in the directory.
+      setFormError("Esse nome já está na lista.");
+      return;
+    }
 
     setMessage(
       `${name} ${localize(editingPlayer ? "foi atualizado." : "foi adicionado.", language)}`,
@@ -143,6 +149,11 @@ export function PlayerDirectoryManager({
                 language,
               )}
             </p>
+            {formError && (
+              <p className="error player-form-error">
+                {localize(formError, language)}
+              </p>
+            )}
             <form className="player-form" onSubmit={savePlayer}>
               <input
                 className="player-form-name"
@@ -150,9 +161,10 @@ export function PlayerDirectoryManager({
                 maxLength={20}
                 placeholder={localize("Nome", language)}
                 value={draft.name}
-                onChange={(event) =>
-                  setDraft({ ...draft, name: event.target.value })
-                }
+                onChange={(event) => {
+                  setDraft({ ...draft, name: event.target.value });
+                  setFormError("");
+                }}
               />
               {!isEditingOwnPlayer && (
                 <select

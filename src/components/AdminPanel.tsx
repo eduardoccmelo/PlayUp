@@ -46,6 +46,7 @@ export function AdminPanel({
   const [lastInvite, setLastInvite] = useState<string>("");
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
+  const [leaveError, setLeaveError] = useState("");
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deletePasscode, setDeletePasscode] = useState("");
   const [deleteError, setDeleteError] = useState("");
@@ -119,7 +120,7 @@ export function AdminPanel({
             </span>
             {admin.userId === user.id ? (
               <span className="admin-panel-actions">
-                <button className="session-action-button delete" onClick={() => setIsLeaveOpen(true)}>
+                <button className="session-action-button delete" onClick={() => { setLeaveError(""); setIsLeaveOpen(true); }}>
                   {localize("Sair do grupo", language)}
                 </button>
               </span>
@@ -209,9 +210,21 @@ export function AdminPanel({
           <section aria-modal="true" className="confirm-dialog group-auth-modal" role="dialog">
             <p className="form-mode">{localize("SAIR DO GRUPO", language)}</p>
             <p>{localize("Você deixará de ver os jogos deste grupo.", language)}</p>
+            {leaveError && <small className="error">{localize(leaveError, language)}</small>}
             <div className="confirm-dialog-actions">
               <button className="secondary" onClick={() => setIsLeaveOpen(false)}>{localize("Cancelar", language)}</button>
-              <button className="session-action-button delete" onClick={() => { if (onLeaveGroup()) setIsLeaveOpen(false); }}>{localize("Sair do grupo", language)}</button>
+              <button
+                className="session-action-button delete"
+                onClick={() => {
+                  if (onLeaveGroup()) {
+                    setIsLeaveOpen(false);
+                    return;
+                  }
+                  setLeaveError("O criador só pode sair quando houver outro membro para assumir o grupo.");
+                }}
+              >
+                {localize("Sair do grupo", language)}
+              </button>
             </div>
           </section>
         </div>
