@@ -189,6 +189,7 @@ export const translations: Record<
     "Gerar times pagos →": "Generate paid-player teams →",
     "Gerar times": "Generate teams",
     "Balancear novamente": "Balance again",
+    "Fazer o último balanceamento": "Make the final rebalance",
     "Deixe o balanceamento como etapa final, de preferência no dia do jogo. Com a lista completa e todos pagos, os times são gerados automaticamente.":
       "Leave team balancing as a final step, ideally on game day. When the list is full and everyone is paid, teams are generated automatically.",
     "Rebalanceamentos manuais": "Manual rebalances",
@@ -271,6 +272,8 @@ export const translations: Record<
     "Preencha todos os detalhes do jogo.": "Fill in all game details.",
     "Não é possível criar um jogo em uma data passada.":
       "You cannot create a game in the past.",
+    "Não é possível criar um jogo em um horário passado.":
+      "You cannot create a game at a time that has already passed.",
     "O horário de término deve ser posterior ao início.":
       "End time must be after start time.",
     "A duração precisa terminar no mesmo dia.":
@@ -407,10 +410,10 @@ export const translations: Record<
       "Team balancing will be available only when the list is full and every player has paid.",
     "Marque pelo menos 2 jogadores como pagos para gerar os times.":
       "Mark at least 2 players as paid to generate teams.",
-    "O limite de 1 rebalanceamento foi atingido. O botão será reativado 15 minutos antes do jogo para somente mais 1 rebalanceamento final.":
-      "The limit of 1 rebalance has been reached. The button will be re-enabled 15 minutes before the game for one final rebalance only.",
-    "Rebalanceamento final disponível: somente 1 tentativa até o início do jogo.":
-      "Final rebalance available: only 1 attempt until the game starts.",
+    "O limite de 1 rebalanceamento foi atingido. O botão será reativado 15 minutos antes do jogo e ficará disponível até o fim para somente mais 1 rebalanceamento final.":
+      "The limit of 1 rebalance has been reached. The button will be re-enabled 15 minutes before the game and remain available until it ends for one final rebalance only.",
+    "Somente mais 1 rebalanceamento final disponível.":
+      "Only 1 final rebalance remains available.",
     "O rebalanceamento final já foi utilizado.":
       "The final rebalance has already been used.",
     "Você deseja sair deste grupo?": "Do you want to leave this group?",

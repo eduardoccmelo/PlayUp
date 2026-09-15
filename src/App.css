@@ -923,6 +923,16 @@ header {
   color: #486052;
   font-size: 13px;
 }
+.balance-info-box {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #cbdfea;
+  border-radius: 10px;
+  background: #edf6fb;
+  color: #31586c;
+  font-size: 13px;
+  line-height: 1.45;
+}
 .minimum-players-control {
   display: grid;
   gap: 16px;

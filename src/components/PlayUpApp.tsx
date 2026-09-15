@@ -45,7 +45,6 @@ import {
   hasGameEnded,
   isVisibleToParticipants as visibleToPlayers,
   pricePerPlayer as price,
-  today,
   gameTimestamp,
   normalizeText,
 } from "../utils/game";
@@ -82,15 +81,20 @@ const standardBalanceLimit = (game: GameSession) =>
 const lockedBalanceWindow = (game: GameSession) => {
   const scheduledAt = gameTimestamp(game);
   const startAt = Date.parse(game.balanceWindowStartAt ?? "");
-  const endAt = Date.parse(game.balanceWindowEndAt ?? "");
   return {
     start: Number.isFinite(startAt) ? startAt : scheduledAt - FINAL_REBALANCE_WINDOW,
-    end: Number.isFinite(endAt) ? endAt : scheduledAt,
+    // The final attempt opens before kickoff but remains possible during play.
+    end: gameTimestamp(game, game.endTime || game.time),
   };
 };
 const lockBalanceWindow = (game: GameSession): GameSession => {
-  if (game.balanceWindowStartAt && game.balanceWindowEndAt) return game;
   const { start, end } = lockedBalanceWindow(game);
+  if (
+    Date.parse(game.balanceWindowStartAt ?? "") === start &&
+    Date.parse(game.balanceWindowEndAt ?? "") === end
+  ) {
+    return game;
+  }
   return {
     ...game,
     balanceWindowStartAt: new Date(start).toISOString(),
@@ -105,7 +109,9 @@ const reanchorBalanceWindow = (game: GameSession): GameSession => {
     balanceWindowStartAt: new Date(
       scheduledAt - FINAL_REBALANCE_WINDOW,
     ).toISOString(),
-    balanceWindowEndAt: new Date(scheduledAt).toISOString(),
+    balanceWindowEndAt: new Date(
+      gameTimestamp(game, game.endTime || game.time),
+    ).toISOString(),
   };
 };
 const isFinalRebalanceWindow = (game: GameSession, now: number) => {
@@ -648,6 +654,7 @@ export function PlayUpApp() {
     !game!.lateRebalanceUsed;
   const canBalance =
     Boolean(game) &&
+    !hasGameEnded(game!) &&
     (balanceCountOf(game!) < currentBalanceLimit || isFinalBalanceAvailable);
   const latestBalance = game?.balanceHistory?.slice(-1)[0];
   const waiting = game
@@ -824,8 +831,11 @@ export function PlayUpApp() {
       setGameFormError("A duração precisa terminar no mesmo dia.");
       return;
     }
-    if (!editGame && gameForm.date < today()) {
-      setGameFormError("Não é possível criar um jogo em uma data passada.");
+    if (
+      !editGame &&
+      new Date(`${gameForm.date}T${gameForm.time}:00`).getTime() <= Date.now()
+    ) {
+      setGameFormError("Não é possível criar um jogo em um horário passado.");
       return;
     }
     if (
@@ -1726,8 +1736,10 @@ export function PlayUpApp() {
         onCreateGame={(draft) => {
           if (!isValidIsoDate(draft.date))
             return "Informe uma data válida no formato DD/MM/AAAA.";
-          if (draft.date < today())
-            return "Não é possível criar um jogo em uma data passada.";
+          if (
+            new Date(`${draft.date}T${draft.time}:00`).getTime() <= Date.now()
+          )
+            return "Não é possível criar um jogo em um horário passado.";
           const endTime = endTimeFromDuration(draft.time, draft.duration);
           if (!endTime) return "A duração precisa terminar no mesmo dia.";
           const newGame = lockBalanceWindow({
@@ -2731,7 +2743,7 @@ export function PlayUpApp() {
             </section>
             <aside className="side-column">
               <section className="teams-section team-balance-panel">
-                <p className="balance-availability">
+                <p className="balance-info-box">
                   {localize(
                     "Deixe o balanceamento como etapa final, de preferência no dia do jogo. Com a lista completa e todos pagos, os times são gerados automaticamente.",
                     language,
@@ -2739,7 +2751,7 @@ export function PlayUpApp() {
                   {localize("Atual", language)}: ({paid.length}/
                   {game.maxPlayers})
                 </p>
-                {!isParticipantGameManager ? (
+                {!isParticipantGameManager && !isFinalBalanceAvailable ? (
                   <p className="balance-availability">
                     {latestBalance
                       ? latestBalance.type === "late-rebalance"
@@ -2767,7 +2779,7 @@ export function PlayUpApp() {
                   !game.lateRebalanceUsed && (
                     <p className="balance-availability balance-limit-notice">
                       {localize(
-                        "O limite de 1 rebalanceamento foi atingido. O botão será reativado 15 minutos antes do jogo para somente mais 1 rebalanceamento final.",
+                        "O limite de 1 rebalanceamento foi atingido. O botão será reativado 15 minutos antes do jogo e ficará disponível até o fim para somente mais 1 rebalanceamento final.",
                         language,
                       )}
                     </p>
@@ -2776,10 +2788,10 @@ export function PlayUpApp() {
                   <p className="balance-availability">
                     {game.lastScheduleChange?.wasBroughtForward
                       ? language === "pt"
-                        ? `Rebalanceamento final disponibilizado antecipadamente: o jogo foi antecipado por ${game.lastScheduleChange.changedByName}.`
-                        : `Final rebalance made available early: ${game.lastScheduleChange.changedByName} moved the game earlier.`
+                        ? `Somente mais 1 rebalanceamento final disponível. O jogo foi antecipado por ${game.lastScheduleChange.changedByName}.`
+                        : `Only 1 final rebalance remains available. ${game.lastScheduleChange.changedByName} moved the game earlier.`
                       : localize(
-                          "Rebalanceamento final disponível: somente 1 tentativa até o início do jogo.",
+                          "Somente mais 1 rebalanceamento final disponível.",
                           language,
                         )}
                   </p>
@@ -2839,7 +2851,11 @@ export function PlayUpApp() {
                   }}
                 >
                   {localize(
-                    hasCurrentTeams ? "Balancear novamente" : "Gerar times",
+                    balanceCountOf(game) >= currentBalanceLimit
+                      ? "Fazer o último balanceamento"
+                      : hasCurrentTeams
+                        ? "Balancear novamente"
+                        : "Gerar times",
                     language,
                   )}
                 </button>

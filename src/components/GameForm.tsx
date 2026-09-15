@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { localize, type Language } from "../i18n";
 import {
   availableTimeSlots,
@@ -86,10 +86,21 @@ export function GameForm({
 }: GameFormProps) {
   const text = (value: string) => localize(value, language);
   const [dateInput, setDateInput] = useState(displayDate(draft.date));
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
   const dateIsValid = isValidDisplayDate(dateInput);
   const minimumDate = today();
+  const startTimeHasPassed =
+    !isEditing &&
+    dateIsValid &&
+    Boolean(draft.time) &&
+    new Date(`${isoDate(dateInput)}T${draft.time}:00`).getTime() <= currentTime;
   const dateHasError =
-    dateInput.length === 10 && (!dateIsValid || isoDate(dateInput) < minimumDate);
+    dateInput.length === 10 &&
+    (!dateIsValid || isoDate(dateInput) < minimumDate || startTimeHasPassed);
 
   return (
     <form className="game-form" onSubmit={onSubmit}>
@@ -130,7 +141,13 @@ export function GameForm({
       </div>
       <label className="game-field start-field">
         <span>{text("Horário de início")}</span>
-        <select required value={draft.time} onChange={(event) => onChange({ ...draft, time: event.target.value })}>
+        <select
+          required
+          value={draft.time}
+          aria-invalid={startTimeHasPassed}
+          className={startTimeHasPassed ? "date-input-invalid" : undefined}
+          onChange={(event) => onChange({ ...draft, time: event.target.value })}
+        >
           <option value="">{text("Selecione...")}</option>
           {availableTimeSlots.map((timeSlot) => <option key={timeSlot} value={timeSlot}>{timeSlot}</option>)}
         </select>
