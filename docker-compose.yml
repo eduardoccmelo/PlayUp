@@ -1,0 +1,43 @@
+services:
+  db:
+    build: ./db
+    environment:
+      POSTGRES_DB: playup
+      POSTGRES_USER: playup
+      POSTGRES_PASSWORD: playup
+    ports:
+      - "5432:5432"
+    volumes:
+      - playup-db:/var/lib/postgresql/data
+      # Mounted read-only so `docker compose exec db psql -f /seeds/seed.sql`
+      # can load development data after the migrations have run.
+      - ./db:/seeds:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U playup -d playup"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      PLAYUP_DATABASE_URL: postgresql+psycopg://playup:playup@db:5432/playup
+      PLAYUP_ENVIRONMENT: development
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    build: .
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  playup-db:
