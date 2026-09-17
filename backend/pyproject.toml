@@ -38,6 +38,9 @@ line-length = 100
 target-version = "py312"
 
 [tool.pytest.ini_options]
+# tests/ is a plain directory that imports `tests.factories`, so the project
+# root must be importable when pytest is invoked bare (not via `python -m`).
+pythonpath = ["."]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = ["db: needs a real PostgreSQL instance"]

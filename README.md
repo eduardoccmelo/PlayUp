@@ -19,6 +19,7 @@ PlayUp is a web application for organizing group sports games. One profile can m
 - [Available scripts](#available-scripts)
 - [Project structure](#project-structure)
 - [Current persistence and limitations](#current-persistence-and-limitations)
+- [Deployment](#deployment)
 - [Suggested next steps](#suggested-next-steps)
 
 ## Features
@@ -276,6 +277,16 @@ Data is stored only in the browser's `localStorage`. Consequently:
 - the profile/email/access-code journey is a local mock: there are no real accounts, email delivery, passcode recovery, server-enforced permissions, or audit trail.
 
 The planned backend model, permissions, API, profile recovery, and secure invite/token strategy are documented in [docs/backend-schema.md](docs/backend-schema.md).
+
+## Deployment
+
+The whole stack (PostgreSQL, API, nginx-served frontend) runs with Docker Compose. Copy `.env.example` to `.env`, set `POSTGRES_PASSWORD`, then:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Step-by-step instructions for an AWS EC2 instance are in [docs/deploy-aws.md](docs/deploy-aws.md).
 
 ## Suggested next steps
 

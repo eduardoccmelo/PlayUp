@@ -1,6 +1,17 @@
+# Build context for the frontend image (repository root).
 node_modules
 dist
 dist-ssr
 .git
+.github
 .DS_Store
 npm-debug.log*
+
+# Not part of the frontend build.
+backend
+db
+docs
+*.md
+docker-compose*.yml
+.env
+.env.*

@@ -1,5 +1,6 @@
 -- Development data mirrored from PlayUp/src/dev/seeds.ts.
--- This file runs only when PostgreSQL initializes an empty data directory.
+-- Development only. Apply by hand after the migrations have run
+-- (see db/README.md); never load it into a production database.
 
 INSERT INTO users (id, display_name, email, email_verified_at, access_code_hash)
 VALUES (

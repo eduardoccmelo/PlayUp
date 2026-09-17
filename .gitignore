@@ -27,3 +27,8 @@ dist-ssr
 backend/.venv/
 __pycache__/
 *.py[cod]
+
+# Environment files (see .env.example)
+.env
+.env.*
+!.env.example

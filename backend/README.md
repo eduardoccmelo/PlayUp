@@ -4,13 +4,17 @@ Python 3.12+, FastAPI, async SQLAlchemy 2, PostgreSQL 16, Alembic.
 
 ## Running the whole stack
 
-From the repository root:
+From the repository root (`docker-compose.override.yml` is loaded
+automatically and publishes the ports below):
 
 ```bash
 docker compose up -d db backend
 # development seed data, applied after the migrations
 docker compose exec -T db psql -U playup -d playup -f /seeds/seed.sql
 ```
+
+For a server deployment see `docs/deploy-aws.md`
+(`docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`).
 
 The API is on `http://localhost:8000`, health check at `GET /health`,
 OpenAPI at `/docs`. Vite proxies `/api/*` to it, so the frontend calls

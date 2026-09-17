@@ -1,0 +1,22 @@
+# Production overrides. Requires POSTGRES_PASSWORD in .env; everything else
+# has a sensible default. See docs/deploy-aws.md.
+services:
+  db:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    environment:
+      PLAYUP_DATABASE_URL: postgresql+psycopg://playup:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/playup
+      PLAYUP_ENVIRONMENT: ${PLAYUP_ENVIRONMENT:-production}
+    logging: *logging
+
+  frontend:
+    ports:
+      - "${WEB_PORT:-80}:80"
+    logging: *logging

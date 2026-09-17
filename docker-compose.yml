@@ -1,43 +1,50 @@
+# Base stack, safe to run as-is on a server:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Locally, `docker compose up` also loads docker-compose.override.yml, which
+# publishes the database and API ports and turns on development mode.
+# Variables come from .env (see .env.example).
+
 services:
   db:
     build: ./db
     environment:
       POSTGRES_DB: playup
       POSTGRES_USER: playup
-      POSTGRES_PASSWORD: playup
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-playup}
     volumes:
       - playup-db:/var/lib/postgresql/data
-      # Mounted read-only so `docker compose exec db psql -f /seeds/seed.sql`
-      # can load development data after the migrations have run.
-      - ./db:/seeds:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U playup -d playup"]
       interval: 3s
       timeout: 3s
       retries: 20
+    restart: unless-stopped
 
   backend:
     build: ./backend
     environment:
-      PLAYUP_DATABASE_URL: postgresql+psycopg://playup:playup@db:5432/playup
-      PLAYUP_ENVIRONMENT: development
-    ports:
-      - "8000:8000"
+      PLAYUP_DATABASE_URL: postgresql+psycopg://playup:${POSTGRES_PASSWORD:-playup}@db:5432/playup
+      PLAYUP_ENVIRONMENT: ${PLAYUP_ENVIRONMENT:-development}
+      # JSON list. Empty by default: nginx proxies /api on the same origin.
+      PLAYUP_CORS_ORIGINS: ${PLAYUP_CORS_ORIGINS:-[]}
     depends_on:
       db:
         condition: service_healthy
-    command: >
-      sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 5
+    restart: unless-stopped
 
   frontend:
     build: .
-    ports:
-      - "5173:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   playup-db:
