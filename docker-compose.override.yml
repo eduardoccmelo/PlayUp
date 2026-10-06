@@ -1,0 +1,26 @@
+# Development additions, loaded automatically by `docker compose up`.
+# Not used on the server (see docker-compose.yml header).
+# Host ports can be moved with DB_PORT / API_PORT / DEV_WEB_PORT in .env
+# when the defaults clash with something already running locally.
+services:
+  db:
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      # Mounted read-only so `docker compose exec db psql -f /seeds/seed.sql`
+      # can load development data after the migrations have run.
+      - ./db:/seeds:ro
+    restart: "no"
+
+  backend:
+    environment:
+      PLAYUP_ENVIRONMENT: development
+      PLAYUP_CORS_ORIGINS: '["http://localhost:5173", "http://127.0.0.1:5173"]'
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    restart: "no"
+
+  frontend:
+    ports:
+      - "${DEV_WEB_PORT:-5173}:80"
+    restart: "no"
