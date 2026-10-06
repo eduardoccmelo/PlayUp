@@ -1,0 +1,74 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never run two deploys against the same box at once.
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+  APP_DIR: /opt/playup
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy via SSM
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          SHA: ${{ github.sha }}
+        run: |
+          # Variables are expanded here on the runner; the quoted 'ENV'
+          # heredoc means the instance writes the password verbatim.
+          script=$(cat <<EOF
+          set -eu
+          [ -d $APP_DIR/.git ] || git clone --quiet $REPO_URL $APP_DIR
+          cd $APP_DIR
+          git fetch --quiet origin
+          git checkout --force --quiet $SHA
+          umask 077
+          cat > .env <<'ENV'
+          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+          PLAYUP_ENVIRONMENT=production
+          WEB_PORT=80
+          ENV
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --wait
+          docker image prune -f
+          curl -fsS http://localhost/api/health
+          EOF
+          )
+
+          params=$(jq -n --arg s "$script" '{commands: [$s], executionTimeout: ["1800"]}')
+
+          cmd_id=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "Deploy ${SHA::7}" \
+            --parameters "$params" \
+            --query Command.CommandId --output text)
+          echo "SSM command: $cmd_id"
+
+          # `aws ssm wait command-executed` gives up after ~100s; builds take longer.
+          while :; do
+            status=$(aws ssm get-command-invocation --command-id "$cmd_id" \
+              --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in Pending|InProgress|Delayed) sleep 10 ;; *) break ;; esac
+          done
+
+          aws ssm get-command-invocation --command-id "$cmd_id" --instance-id "$INSTANCE_ID" \
+            --query '[StandardOutputContent, StandardErrorContent]' --output text
+          echo "Status: $status"
+          [ "$status" = Success ]
